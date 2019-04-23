@@ -237,7 +237,7 @@ static struct adsp_reg_space byt_io[] = {
         .reg = adsp_byt_shim_map, .init = &adsp_byt_shim_init, .ops = &byt_shim_ops,
         .desc = {.base = ADSP_BYT_DSP_SHIM_BASE, .size = ADSP_BYT_SHIM_SIZE},},
     { .name = "mbox", .reg_count = ARRAY_SIZE(adsp_mbox_map),
-        .reg = adsp_mbox_map, .ops = &mbox_io_ops,
+        .reg = adsp_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
         .desc = {.base = ADSP_BYT_DSP_MAILBOX_BASE, .size = ADSP_MAILBOX_SIZE},},
 };
 
