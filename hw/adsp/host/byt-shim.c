@@ -22,8 +22,13 @@
 #include "hw/audio/adsp-host.h"
 #include "hw/adsp/log.h"
 
+uint64_t adsp_shim_read(void *opaque, hwaddr addr,
+                        unsigned size);
+void adsp_shim_write(void *opaque, hwaddr addr,
+                     uint64_t val, unsigned size);
+
 /* driver reads from the SHIM */
-static uint64_t adsp_shim_read(void *opaque, hwaddr addr,
+uint64_t adsp_shim_read(void *opaque, hwaddr addr,
         unsigned size)
 {
     struct adsp_io_info *info = opaque;
@@ -46,7 +51,7 @@ static uint64_t adsp_shim_read(void *opaque, hwaddr addr,
 }
 
 /* driver writes to the SHIM */
-static void adsp_shim_write(void *opaque, hwaddr addr,
+void adsp_shim_write(void *opaque, hwaddr addr,
         uint64_t val, unsigned size)
 {
     struct adsp_io_info *info = opaque;

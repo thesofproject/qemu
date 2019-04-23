@@ -22,6 +22,10 @@
 #include "hw/adsp/byt.h"
 #include "hw/adsp/log.h"
 
+extern const MemoryRegionOps adsp_byt_host_shim_ops;
+extern const MemoryRegionOps adsp_host_mbox_ops;
+extern const MemoryRegionOps byt_host_pci_ops;
+
 static struct adsp_mem_desc byt_mem[] = {
     {.name = "iram", .base = ADSP_BYT_HOST_IRAM_BASE,
         .size = ADSP_BYT_IRAM_SIZE},
@@ -31,13 +35,22 @@ static struct adsp_mem_desc byt_mem[] = {
 
 static struct adsp_reg_space byt_io[] = {
     { .name = "pci",
-        .desc = {.base = ADSP_BYT_PCI_BASE, .size = ADSP_PCI_SIZE},},
+        .desc = {.base = ADSP_BYT_PCI_BASE, .size = ADSP_PCI_SIZE},
+        .init = (void*)adsp_byt_init_pci,
+        .ops = &byt_host_pci_ops,
+    },
     { .name = "shim", .reg_count = ARRAY_SIZE(adsp_byt_shim_map),
         .reg = adsp_byt_shim_map,
-        .desc = {.base = ADSP_BYT_DSP_SHIM_BASE, .size = ADSP_BYT_SHIM_SIZE},},
+        .desc = {.base = ADSP_BYT_HOST_SHIM_BASE, .size = ADSP_BYT_SHIM_SIZE},
+        .init = (void*)adsp_byt_init_shim,
+        .ops = &adsp_byt_host_shim_ops,
+    },
     { .name = "mbox", .reg_count = ARRAY_SIZE(adsp_host_mbox_map),
         .reg = adsp_host_mbox_map,
-        .desc = {.base = ADSP_BYT_DSP_MAILBOX_BASE, .size = ADSP_MAILBOX_SIZE},},
+        .desc = {.base = ADSP_BYT_HOST_MAILBOX_BASE, .size = ADSP_MAILBOX_SIZE},
+        .init = (void*)adsp_host_init_mbox,
+        .ops = &adsp_host_mbox_ops,
+    }
 };
 
 static const struct adsp_desc byt_board = {
