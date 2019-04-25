@@ -175,7 +175,7 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 
 			mem = adsp_get_mem_space(adsp, board->iram_base + block->offset - board->host_iram_offset);
 			if (!mem)
-				continue;
+				goto next;
 			memcpy(mem->ptr + block->offset - board->host_iram_offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
@@ -186,7 +186,7 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 
 			mem = adsp_get_mem_space(adsp, board->dram_base + block->offset - board->host_dram_offset);
 			if (!mem)
-				continue;
+				goto next;
 			memcpy(mem->ptr + block->offset - board->host_dram_offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
@@ -200,7 +200,7 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 			"block %d type 0x%x size 0x%x ==>  offset 0x%x\n",
 			count, block->type, block->size, block->offset);
 
-
+next:
 		/* next block */
 		block = (void *)block + sizeof(*block) + block->size;
 	}
