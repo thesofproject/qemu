@@ -387,6 +387,9 @@ static const struct adsp_desc hikey_dsp_desc = {
 
     .num_io = ARRAY_SIZE(hikey_io),
     .io_dev = hikey_io,
+
+    .iram_base = ADSP_HIKEY_HOST_RUN_ITCM_BASE,
+    .dram_base = ADSP_HIKEY_HOST_RUN_DTCM_BASE,
 };
 
 static void hikey_adsp_init(MachineState *machine)
