@@ -73,7 +73,6 @@ esac
 	-device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x8 \
 	-msg timestamp=on \
 	-display sdl \
-	-netdev user,id=network0 -device e1000,netdev=network0 \
-	-redir tcp:5555::22 \
+	-netdev user,id=network0,hostfwd=tcp::5555-:22 -device e1000,netdev=network0 \
 	-monitor stdio $HDA $ADSP $2
 
