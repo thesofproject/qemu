@@ -77,6 +77,11 @@ while [[ $# -gt 0 ]]
 do
 key="$2"
 
+# if no kernel passed, start QEMU in frozen state
+if test x$3 == x ; then
+    DARGS="-S"
+fi
+
 case $key in
     -k|--kernel)
     KERNEL="-kernel $3"
