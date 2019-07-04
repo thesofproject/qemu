@@ -77,11 +77,6 @@ while [[ $# -gt 0 ]]
 do
 key="$2"
 
-# if no kernel passed, start QEMU in frozen state
-if test x$3 == x ; then
-    DARGS="-S"
-fi
-
 case $key in
     -k|--kernel)
     KERNEL="-kernel $3"
@@ -106,7 +101,8 @@ case $key in
     shift # past argument
     ;;
     -d|--debug)
-    DARGS="-s -S"
+    DARGS="-s"
+    CARGS="-S"
     shift # past argument
     ;;
     -c|--console)
@@ -127,6 +123,11 @@ case $key in
 esac
 done
 set -- "${ARG[@]}" # restore arg parameters
+
+# if no kernel passed, start QEMU in frozen state
+if [ -z $KERNEL ]; then
+    CARGS="-S"
+fi
 
 # clear old queues and memory
 rm -fr /dev/shm/qemu-bridge*
