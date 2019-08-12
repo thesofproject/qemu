@@ -125,7 +125,7 @@ done
 set -- "${ARG[@]}" # restore arg parameters
 
 # if no kernel passed, start QEMU in frozen state
-if [ -z $KERNEL ]; then
+if [ -z "$KERNEL" ]; then
     CARGS="-S"
 fi
 
