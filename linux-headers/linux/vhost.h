@@ -119,4 +119,9 @@
 #define VHOST_VSOCK_SET_GUEST_CID	_IOW(VHOST_VIRTIO, 0x60, __u64)
 #define VHOST_VSOCK_SET_RUNNING		VHOST_SET_RUNNING
 
+/* VHOST_DSP specific defines */
+
+#define VHOST_DSP_SET_GUEST_TPLG	_IOW(VHOST_VIRTIO, 0x80,	\
+					struct vhost_dsp_topology)
+
 #endif

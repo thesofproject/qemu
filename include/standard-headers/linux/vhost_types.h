@@ -11,6 +11,8 @@
  * device configuration.
  */
 
+#include "linux/limits.h"
+
 #include "standard-headers/linux/types.h"
 
 #include "standard-headers/linux/virtio_config.h"
@@ -117,6 +119,12 @@ struct vhost_scsi_target {
 	char vhost_wwpn[224]; /* TRANSPORT_IQN_LEN */
 	unsigned short vhost_tpgt;
 	unsigned short reserved;
+};
+
+/* VHOST_DSP */
+
+struct vhost_dsp_topology {
+	char name[NAME_MAX + 1];
 };
 
 /* Feature bits */

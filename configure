@@ -381,6 +381,7 @@ vhost_net=""
 vhost_crypto=""
 vhost_scsi=""
 vhost_vsock=""
+vhost_dsp=""
 vhost_user=""
 vhost_user_fs=""
 kvm="no"
@@ -1304,6 +1305,10 @@ for opt do
   ;;
   --enable-vhost-user-fs) vhost_user_fs="yes"
   ;;
+  --disable-vhost-dsp) vhost_dsp="no"
+  ;;
+  --enable-vhost-dsp) vhost_dsp="yes"
+  ;;
   --disable-opengl) opengl="no"
   ;;
   --enable-opengl) opengl="yes"
@@ -1776,6 +1781,7 @@ disabled with --disable-FEATURE, default is enabled if available:
   attr            attr and xattr support
   vhost-net       vhost-net kernel acceleration support
   vhost-vsock     virtio sockets device support
+  vhost-dsp       virtio DSP device support
   vhost-scsi      vhost-scsi kernel target support
   vhost-crypto    vhost-user-crypto backend support
   vhost-kernel    vhost kernel backend support
@@ -6541,6 +6547,7 @@ echo "vhost-net support $vhost_net"
 echo "vhost-crypto support $vhost_crypto"
 echo "vhost-scsi support $vhost_scsi"
 echo "vhost-vsock support $vhost_vsock"
+echo "vhost-dsp support $vhost_dsp"
 echo "vhost-user support $vhost_user"
 echo "vhost-user-fs support $vhost_user_fs"
 echo "Trace backends    $trace_backends"
@@ -7036,6 +7043,9 @@ if test "$vhost_crypto" = "yes" ; then
 fi
 if test "$vhost_vsock" = "yes" ; then
   echo "CONFIG_VHOST_VSOCK=y" >> $config_host_mak
+fi
+if test "$vhost_dsp" = "yes" ; then
+  echo "CONFIG_VHOST_DSP=y" >> $config_host_mak
 fi
 if test "$vhost_kernel" = "yes" ; then
   echo "CONFIG_VHOST_KERNEL=y" >> $config_host_mak
