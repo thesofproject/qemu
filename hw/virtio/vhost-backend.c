@@ -185,9 +185,9 @@ static int vhost_kernel_vsock_set_guest_cid(struct vhost_dev *dev,
     return vhost_kernel_call(dev, VHOST_VSOCK_SET_GUEST_CID, &guest_cid);
 }
 
-static int vhost_kernel_vsock_set_running(struct vhost_dev *dev, int start)
+static int vhost_kernel_set_running(struct vhost_dev *dev, int start)
 {
-    return vhost_kernel_call(dev, VHOST_VSOCK_SET_RUNNING, &start);
+    return vhost_kernel_call(dev, VHOST_SET_RUNNING, &start);
 }
 #endif /* CONFIG_VHOST_VSOCK */
 
@@ -264,8 +264,8 @@ static const VhostOps kernel_ops = {
         .vhost_get_vq_index = vhost_kernel_get_vq_index,
 #ifdef CONFIG_VHOST_VSOCK
         .vhost_vsock_set_guest_cid = vhost_kernel_vsock_set_guest_cid,
-        .vhost_vsock_set_running = vhost_kernel_vsock_set_running,
 #endif /* CONFIG_VHOST_VSOCK */
+        .vhost_set_running = vhost_kernel_set_running,
         .vhost_set_iotlb_callback = vhost_kernel_set_iotlb_callback,
         .vhost_send_device_iotlb_msg = vhost_kernel_send_device_iotlb_msg,
 };

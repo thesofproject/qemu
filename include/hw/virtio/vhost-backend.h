@@ -85,7 +85,7 @@ typedef bool (*vhost_backend_can_merge_op)(struct vhost_dev *dev,
                                            uint64_t start2, uint64_t size2);
 typedef int (*vhost_vsock_set_guest_cid_op)(struct vhost_dev *dev,
                                             uint64_t guest_cid);
-typedef int (*vhost_vsock_set_running_op)(struct vhost_dev *dev, int start);
+typedef int (*vhost_set_running_op)(struct vhost_dev *dev, int start);
 typedef void (*vhost_set_iotlb_callback_op)(struct vhost_dev *dev,
                                            int enabled);
 typedef int (*vhost_send_device_iotlb_msg_op)(struct vhost_dev *dev,
@@ -142,7 +142,7 @@ typedef struct VhostOps {
     vhost_migration_done_op vhost_migration_done;
     vhost_backend_can_merge_op vhost_backend_can_merge;
     vhost_vsock_set_guest_cid_op vhost_vsock_set_guest_cid;
-    vhost_vsock_set_running_op vhost_vsock_set_running;
+    vhost_set_running_op vhost_set_running;
     vhost_set_iotlb_callback_op vhost_set_iotlb_callback;
     vhost_send_device_iotlb_msg_op vhost_send_device_iotlb_msg;
     vhost_get_config_op vhost_get_config;

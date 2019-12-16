@@ -61,11 +61,11 @@ static int vhost_vsock_set_running(VHostVSock *vsock, int start)
     const VhostOps *vhost_ops = vsock->vhost_dev.vhost_ops;
     int ret;
 
-    if (!vhost_ops->vhost_vsock_set_running) {
+    if (!vhost_ops->vhost_set_running) {
         return -ENOSYS;
     }
 
-    ret = vhost_ops->vhost_vsock_set_running(&vsock->vhost_dev, start);
+    ret = vhost_ops->vhost_set_running(&vsock->vhost_dev, start);
     if (ret < 0) {
         return -errno;
     }
