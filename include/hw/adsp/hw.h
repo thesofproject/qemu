@@ -29,6 +29,7 @@
 #include "qemu-common.h"
 #include "exec/hwaddr.h"
 #include "exec/memory.h"
+#include "hw/adsp/fw.h"
 
 /* Generic constants */
 #define ADSP_MAX_IO                 32
@@ -79,6 +80,11 @@ struct adsp_io_info {
     void *private;
 };
 
+struct mem_zone {
+        uint32_t base;
+        uint32_t size;
+        uint32_t host_offset;
+};
 
 struct adsp_desc {
 	const char *name;	/* machine name */
@@ -93,14 +99,9 @@ struct adsp_desc {
 	struct adsp_mem_desc *mem_region;
 
 	/* optional platform data */
-	uint32_t host_iram_offset;
-	uint32_t host_dram_offset;
 	uint32_t imr_boot_ldr_offset;
 	uint32_t file_offset;
-	uint32_t dram_base;
-	uint32_t iram_base;
-	uint32_t sram_base;
-	uint32_t imr_base;
+	struct mem_zone mem_zones[SOF_FW_BLK_TYPE_NUM];
 
 	/* devices */
 	int num_io;

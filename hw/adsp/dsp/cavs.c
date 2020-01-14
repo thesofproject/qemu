@@ -795,8 +795,14 @@ static const struct adsp_desc cavs_1_5p_dsp_desc = {
     .num_io = ARRAY_SIZE(cavs_1_5_io),
     .io_dev = cavs_1_5_io,
 
-    .sram_base = ADSP_CAVS_1_5_DSP_HP_SRAM_BASE,
-    .imr_base = ADSP_CAVS_1_5_DSP_IMR_BASE,
+    .mem_zones = {
+        [SOF_FW_BLK_TYPE_IMR] = {
+            .base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+        },
+        [SOF_FW_BLK_TYPE_SRAM] = {
+            .base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
+        },
+    },
 
     .ops = &cavs_1_5_ops,
 };
@@ -815,8 +821,14 @@ static const struct adsp_desc cavs_1_5_dsp_desc = {
     .num_io = ARRAY_SIZE(cavs_1_5_io),
     .io_dev = cavs_1_5_io,
 
-    .sram_base = ADSP_CAVS_1_5_DSP_HP_SRAM_BASE,
-    .imr_base = ADSP_CAVS_1_5_DSP_IMR_BASE,
+    .mem_zones = {
+        [SOF_FW_BLK_TYPE_IMR] = {
+	    .base = ADSP_CAVS_1_5_DSP_IMR_BASE,
+        },
+        [SOF_FW_BLK_TYPE_SRAM] = {
+            .base = ADSP_CAVS_1_5_DSP_HP_SRAM_BASE,
+        },
+     },
 
     .ops = &cavs_1_5_ops,
 };
@@ -1088,8 +1100,14 @@ static const struct adsp_desc cavs_1_8_dsp_desc = {
     .num_io = ARRAY_SIZE(cavs_1_8_io),
     .io_dev = cavs_1_8_io,
 
-    .sram_base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
-    .imr_base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+    .mem_zones = {
+        [SOF_FW_BLK_TYPE_IMR] = {
+            .base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+        },
+        [SOF_FW_BLK_TYPE_SRAM] = {
+            .base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
+        },
+    },
 
     .ops = &cavs_1_8_ops,
 };
@@ -1121,8 +1139,14 @@ static const struct adsp_desc cavs_1_8_dsp_tgl_desc = {
     .num_io = ARRAY_SIZE(cavs_1_8_io),
     .io_dev = cavs_1_8_io,
 
-    .sram_base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
-    .imr_base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+    .mem_zones = {
+        [SOF_FW_BLK_TYPE_IMR] = {
+            .base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+        },
+        [SOF_FW_BLK_TYPE_SRAM] = {
+            .base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
+        },
+    },
 
     .ops = &cavs_1_8_ops,
 };
@@ -1255,8 +1279,14 @@ static const struct adsp_desc cavs_1_8_sue_dsp_desc = {
     .num_io = ARRAY_SIZE(cavs_1_8_sue_io),
     .io_dev = cavs_1_8_sue_io,
 
-    .sram_base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
-    .imr_base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+    .mem_zones = {
+        [SOF_FW_BLK_TYPE_IMR] = {
+            .base = ADSP_CAVS_1_8_DSP_IMR_BASE,
+        },
+        [SOF_FW_BLK_TYPE_SRAM] = {
+            .base = ADSP_CAVS_1_8_DSP_HP_SRAM_BASE,
+        },
+    },
     .ops = &cavs_1_8_ops,
 };
 
