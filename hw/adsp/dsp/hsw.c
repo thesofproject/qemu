@@ -198,8 +198,6 @@ static struct adsp_reg_space hsw_io[] = {
 static const struct adsp_desc hsw_dsp_desc = {
     .name = "Haswell",
     .ia_irq = 4,
-    .host_iram_offset = ADSP_HSW_HOST_IRAM_OFFSET,
-    .host_dram_offset = ADSP_HSW_HOST_DRAM_OFFSET,
 
     .num_mem = ARRAY_SIZE(hsw_mem),
     .mem_region = hsw_mem,
@@ -207,8 +205,19 @@ static const struct adsp_desc hsw_dsp_desc = {
     .num_io = ARRAY_SIZE(hsw_io),
     .io_dev = hsw_io,
 
-    .iram_base = ADSP_HSW_DSP_IRAM_BASE,
-    .dram_base = ADSP_HSW_DSP_DRAM_BASE,
+    .mem_zones = {
+	    [SOF_FW_BLK_TYPE_IRAM] = {
+		.base = ADSP_HSW_DSP_IRAM_BASE,
+		.size = ADSP_HSW_IRAM_SIZE,
+		.host_offset = ADSP_HSW_HOST_IRAM_OFFSET,
+	    },
+	    [SOF_FW_BLK_TYPE_DRAM] = {
+		.base = ADSP_HSW_DSP_DRAM_BASE,
+		.size = ADSP_HSW_DRAM_SIZE,
+		.host_offset = ADSP_HSW_HOST_DRAM_OFFSET,
+	    },
+    },
+
 };
 
 static struct adsp_mem_desc bdw_mem[] = {
@@ -244,8 +253,6 @@ static struct adsp_reg_space bdw_io[] = {
 static const struct adsp_desc bdw_dsp_desc = {
     .name = "Broadwell",
     .ia_irq = 4,
-    .host_iram_offset = ADSP_BDW_HOST_IRAM_OFFSET,
-    .host_dram_offset = ADSP_BDW_HOST_DRAM_OFFSET,
 
     .num_mem = ARRAY_SIZE(bdw_mem),
     .mem_region = bdw_mem,
@@ -253,8 +260,19 @@ static const struct adsp_desc bdw_dsp_desc = {
     .num_io = ARRAY_SIZE(bdw_io),
     .io_dev = bdw_io,
 
-    .iram_base = ADSP_BDW_DSP_IRAM_BASE,
-    .dram_base = ADSP_BDW_DSP_DRAM_BASE,
+    .mem_zones = {
+	[SOF_FW_BLK_TYPE_IRAM] = {
+		.base = ADSP_BDW_DSP_IRAM_BASE,
+		.size = ADSP_BDW_IRAM_SIZE,
+		.host_offset = ADSP_BDW_HOST_IRAM_OFFSET,
+	},
+	[SOF_FW_BLK_TYPE_DRAM] = {
+		.base = ADSP_BDW_DSP_DRAM_BASE,
+		.size = ADSP_BDW_DRAM_SIZE,
+		.host_offset = ADSP_BDW_HOST_DRAM_OFFSET,
+	},
+    },
+
 };
 
 static void hsw_adsp_init(MachineState *machine)

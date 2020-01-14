@@ -125,24 +125,25 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 			continue;	/* not handled atm */
 		case SOF_FW_BLK_TYPE_IRAM:
 			fprintf(stdout, "text: 0x%x size 0x%x\n",
-				board->iram_base + block->offset - board->host_iram_offset,
+				board->mem_zones[block->type].base + block->offset -
+				board->mem_zones[block->type].host_offset,
 				block->size);
 
-			mem = adsp_get_mem_space(adsp, board->iram_base + block->offset - board->host_iram_offset);
+			mem = adsp_get_mem_space(adsp, board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset);
 			if (!mem)
 				goto next;
-			memcpy(mem->ptr + block->offset - board->host_iram_offset,
+			memcpy(mem->ptr + block->offset - board->mem_zones[block->type].host_offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
 		case SOF_FW_BLK_TYPE_DRAM:
 			fprintf(stdout, "data: 0x%x size 0x%x\n",
-				board->dram_base + block->offset - board->host_dram_offset,
+				board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset,
 				block->size);
 
-			mem = adsp_get_mem_space(adsp, board->dram_base + block->offset - board->host_dram_offset);
+			mem = adsp_get_mem_space(adsp, board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset);
 			if (!mem)
 				goto next;
-			memcpy(mem->ptr + block->offset - board->host_dram_offset,
+			memcpy(mem->ptr + block->offset - board->mem_zones[block->type].host_offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
 		default:
@@ -192,16 +193,16 @@ static int sst_module_memcpy(struct adsp_dev *adsp,
 			fprintf(stdout, "text: 0x%x size 0x%x\n",
 				block->offset,
 				block->size);
-			offset = board->host_iram_offset + block->offset;
-			cpu_physical_memory_write(board->iram_base + block->offset,
+			offset = board->mem_zones[block->type].host_offset + block->offset;
+			cpu_physical_memory_write(board->mem_zones[block->type].base + block->offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
 		case SST_HSW_DRAM:
 			fprintf(stdout, "data: 0x%x size 0x%x\n",
-				board->iram_base + block->offset - board->host_dram_offset,
+				board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset,
 				block->size);
-			offset = board->host_dram_offset + block->offset;
-			cpu_physical_memory_write(board->dram_base + block->offset,
+			offset = board->mem_zones[block->type].host_offset + block->offset;
+			cpu_physical_memory_write(board->mem_zones[block->type].base + block->offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
 		default:

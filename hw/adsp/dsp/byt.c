@@ -41,6 +41,7 @@
 #include "mbox.h"
 #include "byt.h"
 #include "common.h"
+#include "hw/adsp/fw.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -247,17 +248,24 @@ static const struct adsp_desc byt_dsp_desc = {
     .ext_timer_irq = IRQ_NUM_EXT_TIMER,
     .pmc_irq = IRQ_NUM_EXT_PMC,
 
-    .host_iram_offset = ADSP_BYT_HOST_IRAM_OFFSET,
-    .host_dram_offset = ADSP_BYT_HOST_DRAM_OFFSET,
-
     .num_mem = ARRAY_SIZE(byt_mem),
     .mem_region = byt_mem,
 
     .num_io = ARRAY_SIZE(byt_io),
     .io_dev = byt_io,
 
-   .iram_base = ADSP_BYT_DSP_IRAM_BASE,
-   .dram_base = ADSP_BYT_DSP_DRAM_BASE,
+    .mem_zones = {
+                [SOF_FW_BLK_TYPE_IRAM] = {
+                        .base = ADSP_BYT_DSP_IRAM_BASE,
+                        .size = ADSP_BYT_IRAM_SIZE,
+                        .host_offset = ADSP_BYT_HOST_IRAM_OFFSET,
+                },
+                [SOF_FW_BLK_TYPE_DRAM] = {
+                        .base = ADSP_BYT_DSP_DRAM_BASE,
+                        .size = ADSP_BYT_DRAM_SIZE,
+                        .host_offset = ADSP_BYT_HOST_DRAM_OFFSET,
+                },
+        },
 };
 
 static struct adsp_reg_space cht_io[] = {
@@ -311,17 +319,25 @@ static const struct adsp_desc cht_dsp_desc = {
     .ext_timer_irq = IRQ_NUM_EXT_TIMER,
     .pmc_irq = IRQ_NUM_EXT_PMC,
 
-    .host_iram_offset = ADSP_BYT_HOST_IRAM_OFFSET,
-    .host_dram_offset = ADSP_BYT_HOST_DRAM_OFFSET,
-
     .num_mem = ARRAY_SIZE(byt_mem),
     .mem_region = byt_mem,
 
     .num_io = ARRAY_SIZE(cht_io),
     .io_dev = cht_io,
 
-   .iram_base = ADSP_BYT_DSP_IRAM_BASE,
-   .dram_base = ADSP_BYT_DSP_DRAM_BASE,
+   .mem_zones = {
+                [SOF_FW_BLK_TYPE_IRAM] = {
+                        .base = ADSP_BYT_DSP_IRAM_BASE,
+                        .size = ADSP_BYT_IRAM_SIZE,
+                        .host_offset = ADSP_BYT_HOST_IRAM_OFFSET,
+                },
+                [SOF_FW_BLK_TYPE_DRAM] = {
+                        .base = ADSP_BYT_DSP_DRAM_BASE,
+                        .size = ADSP_BYT_DRAM_SIZE,
+                        .host_offset = ADSP_BYT_HOST_DRAM_OFFSET,
+                },
+        },
+
 };
 
 static void byt_adsp_init(MachineState *machine)
