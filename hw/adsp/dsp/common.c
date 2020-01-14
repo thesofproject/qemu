@@ -30,6 +30,7 @@
 
 #include "qemu/io-bridge.h"
 #include "hw/audio/adsp-dev.h"
+#include "hw/adsp/fw.h"
 #include "hw/adsp/shim.h"
 #include "hw/adsp/log.h"
 #include "common.h"
@@ -49,10 +50,6 @@ void adsp_set_lvl1_irq(struct adsp_dev *adsp, int irq, int active)
     check_interrupts(env);
 }
 
-#define SND_SOF_FW_SIG_SIZE	4
-#define SND_SOF_FW_ABI		1
-#define SND_SOF_FW_SIG		"Reef"
-
 #define SST_FW_SIG_SIZE		4
 #define SST_HSW_FW_SIGN		"$SST"
 #define SST_HSW_IRAM	1
@@ -64,48 +61,6 @@ void adsp_set_lvl1_irq(struct adsp_dev *adsp, int irq, int active)
  * Block header is used to determine where and how block is to be copied in the
  * DSP/host memory space.
  */
-enum snd_sof_fw_blk_type {
-	SOF_BLK_IMAGE	= 0,	/* whole image - parsed by ROMs */
-	SOF_BLK_TEXT	= 1,
-	SOF_BLK_DATA	= 2,
-	SOF_BLK_CACHE	= 3,
-	SOF_BLK_REGS	= 4,
-	SOF_BLK_SIG	= 5,
-	SOF_BLK_ROM	= 6,
-	/* add new block types here */
-};
-
-struct snd_sof_blk_hdr {
-	enum snd_sof_fw_blk_type type;
-	uint32_t size;		/* bytes minus this header */
-	uint32_t offset;	/* offset from base */
-} __attribute__((packed));
-
-/*
- * Firmware file is made up of 1 .. N different modules types. The module
- * type is used to determine how to load and parse the module.
- */
-enum snd_sof_fw_mod_type {
-	SOF_FW_BASE	= 0,	/* base firmware image */
-	SOF_FW_MODULE	= 1,	/* firmware module */
-};
-
-struct snd_sof_mod_hdr {
-	enum snd_sof_fw_mod_type type;
-	uint32_t size;		/* bytes minus this header */
-	uint32_t num_blocks;	/* number of blocks */
-} __attribute__((packed));
-
-/*
- * SST Firmware file header.
- */
-struct snd_sof_fw_header {
-	char sig[SND_SOF_FW_SIG_SIZE]; /* "Reef" */
-	uint32_t file_size;	/* size of file minus this header */
-	uint32_t num_modules;	/* number of modules */
-	uint32_t abi;		/* version of header format */
-} __attribute__((packed));
-
 
 struct snd_sst_dma_block_info {
 	uint32_t type;		/* IRAM/DRAM */
@@ -162,13 +117,13 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 		}
 
 		switch (block->type) {
-		case SOF_BLK_IMAGE:
-		case SOF_BLK_CACHE:
-		case SOF_BLK_REGS:
-		case SOF_BLK_SIG:
-		case SOF_BLK_ROM:
+		case SOF_FW_BLK_TYPE_RSRVD0:
+		case SOF_FW_BLK_TYPE_SRAM:
+		case SOF_FW_BLK_TYPE_ROM:
+		case SOF_FW_BLK_TYPE_IMR:
+		case SOF_FW_BLK_TYPE_RSRVD6:
 			continue;	/* not handled atm */
-		case SOF_BLK_TEXT:
+		case SOF_FW_BLK_TYPE_IRAM:
 			fprintf(stdout, "text: 0x%x size 0x%x\n",
 				board->iram_base + block->offset - board->host_iram_offset,
 				block->size);
@@ -179,7 +134,7 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 			memcpy(mem->ptr + block->offset - board->host_iram_offset,
 				(void *)block + sizeof(*block), block->size);
 			break;
-		case SOF_BLK_DATA:
+		case SOF_FW_BLK_TYPE_DRAM:
 			fprintf(stdout, "data: 0x%x size 0x%x\n",
 				board->dram_base + block->offset - board->host_dram_offset,
 				block->size);
