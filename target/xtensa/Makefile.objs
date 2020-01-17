@@ -2,6 +2,7 @@ obj-y += xtensa-semi.o
 obj-y += core-dc232b.o
 obj-y += core-dc233c.o
 obj-y += core-baytrail.o
+obj-y += core-imx8.o
 obj-y += core-haswell.o
 obj-y += core-broxton.o
 obj-y += core-suecreek.o
