@@ -124,17 +124,6 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 		case SOF_FW_BLK_TYPE_RSRVD6:
 			continue;	/* not handled atm */
 		case SOF_FW_BLK_TYPE_IRAM:
-			fprintf(stdout, "text: 0x%x size 0x%x\n",
-				board->mem_zones[block->type].base + block->offset -
-				board->mem_zones[block->type].host_offset,
-				block->size);
-
-			mem = adsp_get_mem_space(adsp, board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset);
-			if (!mem)
-				goto next;
-			memcpy(mem->ptr + block->offset - board->mem_zones[block->type].host_offset,
-				(void *)block + sizeof(*block), block->size);
-			break;
 		case SOF_FW_BLK_TYPE_DRAM:
 			fprintf(stdout, "data: 0x%x size 0x%x\n",
 				board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset,
