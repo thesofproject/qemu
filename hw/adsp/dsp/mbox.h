@@ -27,6 +27,7 @@ struct adsp_log;
 
 #define ADSP_MBOX_AREAS        6
 extern const struct adsp_reg_desc adsp_mbox_map[ADSP_MBOX_AREAS];
+extern const struct adsp_reg_desc adsp_imx8_mbox_map[ADSP_MBOX_AREAS];
 
 void adsp_mbox_init(struct adsp_dev *adsp, MemoryRegion *parent,
         struct adsp_io_info *info);
