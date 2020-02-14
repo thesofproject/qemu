@@ -30,10 +30,11 @@
 #include "exec/hwaddr.h"
 #include "exec/memory.h"
 #include "hw/adsp/fw.h"
+#include "include/hw/adsp/imx8.h"
 
 /* Generic constants */
 #define ADSP_MAX_IO                 32
-#define ADSP_MAILBOX_SIZE			0x00001000
+#define ADSP_MAILBOX_SIZE			ADSP_SRAM_INBOX_SIZE + ADSP_SRAM_OUTBOX_SIZE + ADSP_SRAM_DEBUG_SIZE + ADSP_SRAM_EXCEPT_SIZE + ADSP_SRAM_STREAM_SIZE + ADSP_SRAM_TRACE_SIZE
 #define ADSP_MMIO_SIZE				0x00200000
 #define ADSP_PCI_SIZE				0x00001000
 

@@ -221,7 +221,7 @@
 #define XCHAL_DCACHE_IS_COHERENT	0	/* MP coherence feature */
 
 #define XCHAL_HAVE_PREFETCH		1	/* PREFCTL register */
-#define XCHAL_HAVE_PREFETCH_L1		1	/* prefetch to L1 dcache */
+#define XCHAL_HAVE_PREFETCH_L1		0	/* prefetch to L1 dcache */
 #define XCHAL_PREFETCH_CASTOUT_LINES	1	/* dcache pref. castout bufsz */
 #define XCHAL_PREFETCH_ENTRIES		16	/* cache prefetch entries */
 #define XCHAL_PREFETCH_BLOCK_ENTRIES	8	/* prefetch block streams */

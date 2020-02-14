@@ -118,6 +118,18 @@ void adsp_byt_init_shim(struct adsp_host *adsp, MemoryRegion *parent,
 void adsp_byt_host_init(struct adsp_host *adsp, const char *name);
 void build_acpi_byt_adsp_devices(Aml *table);
 
+#define ADSP_HOST_IMX8_NAME        "adsp-imx8"
+
+void adsp_imx8_init_pci(struct adsp_host *adsp, MemoryRegion *parent,
+        struct adsp_io_info *info);
+void adsp_imx8_pci_realize(PCIDevice *pci_dev, Error **errp);
+void adsp_imx8_pci_exit(PCIDevice *pci_dev);
+void adsp_imx8_init_shim(struct adsp_host *adsp, MemoryRegion *parent,
+        struct adsp_io_info *info);
+void adsp_imx8_host_init(struct adsp_host *adsp, const char *name);
+void build_acpi_imx8_adsp_devices(Aml *table);
+
+
 #define ADSP_HOST_HSW_NAME        "adsp-hsw"
 #define ADSP_HOST_BDW_NAME        "adsp-bdw"
 

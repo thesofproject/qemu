@@ -21,11 +21,13 @@
 
 #include "hw/audio/adsp-dev.h"
 #include "hw/adsp/log.h"
+#include "hw/adsp/byt.h"
 #include "hw/adsp/imx8.h"
-#include "hw/adsp/dsp/mbox.h"
+#include "mbox.h"
 #include "imx8.h"
 #include "common.h"
 #include "hw/adsp/fw.h"
+#include "irqstr.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -138,11 +140,10 @@ static struct adsp_dev *adsp_init(const struct adsp_desc *board,
             " ** Waiting for host to load firmware...\n");
         return adsp;
     }
-
     /* load the binary image and copy to IRAM */
-    ldata = g_malloc(ADSP_IMX8_IRAM_SIZE + ADSP_IMX8_SDRAM0_SIZE + ADSP_IMX8_SDRAM1_SIZE);
+    ldata = g_malloc(ADSP_IMX8_IRAM_SIZE + ADSP_IMX8_SDRAM0_SIZE + ADSP_IMX8_SDRAM1_SIZE + ADSP_IMX8_DRAM_SIZE);
     lsize = load_image_size(adsp->kernel_filename, ldata,
-         ADSP_IMX8_IRAM_SIZE + ADSP_IMX8_SDRAM0_SIZE + ADSP_IMX8_SDRAM1_SIZE);
+         ADSP_IMX8_IRAM_SIZE + ADSP_IMX8_SDRAM0_SIZE + ADSP_IMX8_SDRAM1_SIZE + ADSP_IMX8_DRAM_SIZE);
 
     adsp_load_modules(adsp, ldata, lsize);
 
@@ -193,13 +194,21 @@ static struct adsp_mem_desc imx8_mem[] = {
         .size = ADSP_IMX8_DRAM_SIZE},
    {.name = "sdram0", .base = ADSP_IMX8_DSP_SDRAM0_BASE,
         .size = ADSP_IMX8_SDRAM0_SIZE},
+   {.name = "sdram1", .base = ADSP_IMX8_SDRAM1_BASE,
+        .size = ADSP_IMX8_SDRAM1_SIZE},
 };
 
 
 static struct adsp_reg_space imx8_io[] = {
+    { .name = "mu", .reg_count = ARRAY_SIZE(adsp_imx8_mu_map),
+        .reg = adsp_imx8_mu_map, .init = &adsp_imx8_mu_init, .ops = &imx8_mu_ops,
+        .desc = {.base = ADSP_IMX8_DSP_MU_BASE, .size = ADSP_IMX8_DSP_MU_SIZE},},
     { .name = "mbox", .reg_count = ARRAY_SIZE(adsp_imx8_mbox_map),
 	.reg = adsp_imx8_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
-	.desc = {.base = ADSP_IMX8_DSP_MAILBOX_BASE, .size = ADSP_MAILBOX_SIZE},},
+	.desc = {.base = ADSP_IMX8_DSP_MAILBOX_BASE, .size = ADSP_IMX8_DSP_MAILBOX_SIZE},},
+    { .name = "irqstr", .reg_count = ARRAY_SIZE(adsp_imx8_irqstr_map),
+        .reg = adsp_imx8_irqstr_map, .init = &adsp_imx8_irqstr_init, .ops = &irqstr_io_ops,
+        .desc = {.base = ADSP_IMX8_DSP_IRQSTR_BASE, .size = ADSP_IMX8_DSP_IRQSTR_SIZE},},
 };
 
 /* hardware memory map */
@@ -227,7 +236,7 @@ static const struct adsp_desc imx8_dsp_desc = {
                 },
 		[SOF_FW_BLK_TYPE_SRAM] = {
                         .base = ADSP_IMX8_DSP_SDRAM0_BASE,
-                        .size = ADSP_IMX8_SDRAM0_SIZE,
+                        .size = ADSP_IMX8_SDRAM0_SIZE + ADSP_IMX8_SDRAM1_SIZE,
                         .host_offset = 0,
                 },
         },

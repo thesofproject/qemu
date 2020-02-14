@@ -111,5 +111,5 @@ const MemoryRegionOps adsp_mbox_ops = {
 void adsp_mbox_init(struct adsp_dev *adsp, MemoryRegion *parent,
         struct adsp_io_info *info)
 {
-     mbox_reset(info);
+    mbox_reset(info);
 }

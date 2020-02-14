@@ -29,7 +29,7 @@
 #define IRQ_NUM_EXT_SSP2     18
 //#define IRQ_NUM_EXT_DMAC2    19
 //#define IRQ_NUM_NMI          20
-
+#if 0
 //#if CONFIG_INTERRUPT_LEVEL_1
 
 #define IRQ_NUM_SOFTWARE0    8      /* Level 1 */
@@ -39,7 +39,6 @@
 //#endif
 
 //#if CONFIG_INTERRUPT_LEVEL_2
-
 #define IRQ_NUM_TIMER0       2      /* Level 2 */
 #define IRQ_NUM_MU           7      /* Level 2 */
 #define IRQ_NUM_SOFTWARE1    9      /* Level 2 */
@@ -72,7 +71,7 @@
 
 #define IRQ_MASK_TIMER1       BIT(IRQ_NUM_TIMER1)
 
-//#endif
+#endif
 
 
 struct adsp_dev;
@@ -83,6 +82,6 @@ void adsp_imx8_mu_msg(struct adsp_dev *adsp, struct qemu_io_msg *msg);
 void adsp_imx8_irq_msg(struct adsp_dev *adsp, struct qemu_io_msg *msg);
 void imx8_ext_timer_cb(void *opaque);
 extern const MemoryRegionOps imx8_mu_ops;
-extern const MemoryRegionOps adsp_mbox_ops;
+//extern const MemoryRegionOps adsp_mbox_ops;
 
 #endif

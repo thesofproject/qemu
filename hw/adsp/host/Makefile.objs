@@ -1,5 +1,6 @@
 obj-y += \
 	host-dma.o mbox.o \
 	byt.o byt-shim.o byt-pci.o \
+	imx8.o imx8-shim.o imx8-pci.o \
 	hsw.o hsw-shim.o hsw-pci.o \
 	cavs-shim.o

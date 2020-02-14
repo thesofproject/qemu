@@ -33,6 +33,7 @@
 #include "qemu/io-bridge.h"
 #include "hw/adsp/hw.h"
 #include "hw/adsp/shim.h"
+#include "hw/adsp/mu.h"
 
 #define TRACE_CLASS_IRQ		(1 << 24)
 #define TRACE_CLASS_IPC		(2 << 24)
@@ -85,10 +86,30 @@
 #define LOG_SHIM_EXTTH	1
 #define LOG_SHIM_EXTST	0
 
+/* mu debug options - LOG_MU must be 1 to enable other options */
+#define LOG_MU              1
+#define LOG_MU_TR0          1
+#define LOG_MU_TR1          1
+#define LOG_MU_TR2          1
+#define LOG_MU_TR3          1
+#define LOG_MU_RR0          1
+#define LOG_MU_RR1          1
+#define LOG_MU_RR2          1
+#define LOG_MU_RR3          1
+#define LOG_MU_SR          1
+#define LOG_MU_CR          1
+
 /* IRQ debug options */
 #define LOG_IRQ_BUSY		1
 #define LOG_IRQ_DONE		1
 #define LOG_IRQ_ACTIVE	1
+
+#define LOG_IRQSTR_CONTROL		1
+#define LOG_IRQSTR_MASK			1
+#define LOG_IRQSTR_SET			1
+#define LOG_IRQSTR_STATUS		1
+#define LOG_IRQSTR_MASTER_DISABLE	1
+#define LOG_IRQSTR_MASTER_STATUS	1
 
 /* CPU status debug options */
 #define LOG_CPU_RESET		1
@@ -123,9 +144,10 @@ extern const struct adsp_reg_desc adsp_bxt_shim_map[BXT_SHIM_REGS];
 extern const struct adsp_reg_desc adsp_sue_shim_map[SUE_SHIM_REGS];
 #define CNL_SHIM_REGS   25
 extern const struct adsp_reg_desc adsp_cnl_shim_map[CNL_SHIM_REGS];
+#define IMX8_MU_REGS    10
+extern const struct adsp_reg_desc adsp_imx8_mu_map[IMX8_MU_REGS];
 
-
-#if LOG_SHIM
+#if LOG_MU
 
 static inline void log_print(struct adsp_log *log, const char *fmt, ...)
 {
