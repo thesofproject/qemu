@@ -30,6 +30,7 @@
 #include "imx8.h"
 #include "common.h"
 #include "hw/adsp/fw.h"
+#include "irqstr.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -194,6 +195,11 @@ static struct adsp_reg_space imx8_io[] = {
         .ops = &imx8_mu_ops,
         .desc = {.base = ADSP_IMX8_DSP_MU_BASE,
         .size = ADSP_IMX8_DSP_MU_SIZE},},
+    { .name = "irqstr", .reg_count = ARRAY_SIZE(adsp_imx8_irqstr_map),
+        .reg = adsp_imx8_irqstr_map, .init = &adsp_imx8_irqstr_init,
+        .ops = &irqstr_io_ops,
+        .desc = {.base = ADSP_IMX8_DSP_IRQSTR_BASE,
+        .size = ADSP_IMX8_DSP_IRQSTR_SIZE},},
 };
 
 /* hardware memory map */
