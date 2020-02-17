@@ -2,6 +2,7 @@ obj-y += byt-shim.o
 obj-y += hsw-shim.o
 obj-y += cavs-shim.o
 obj-y += imx8-mu.o
+obj-y += irqstr.o
 obj-y += mbox.o
 obj-y += byt.o
 obj-y += hsw.o

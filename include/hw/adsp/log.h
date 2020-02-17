@@ -104,6 +104,14 @@
 #define LOG_IRQ_DONE		1
 #define LOG_IRQ_ACTIVE	1
 
+/* IRQ Steer debug options */
+#define LOG_IRQSTR_CONTROL           1
+#define LOG_IRQSTR_MASK              1
+#define LOG_IRQSTR_SET               1
+#define LOG_IRQSTR_STATUS            1
+#define LOG_IRQSTR_MASTER_DISABLE    1
+#define LOG_IRQSTR_MASTER_STATUS     1
+
 /* CPU status debug options */
 #define LOG_CPU_RESET		1
 
