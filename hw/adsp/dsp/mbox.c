@@ -32,6 +32,7 @@
 #include "hw/audio/adsp-dev.h"
 #include "hw/adsp/shim.h"
 #include "hw/adsp/log.h"
+#include "hw/adsp/imx8.h"
 #include "mbox.h"
 
 /* mailbox map - must be aligned with reef platform/mailbox.h */
@@ -48,6 +49,23 @@ const struct adsp_reg_desc adsp_mbox_map[ADSP_MBOX_AREAS] = {
         .offset = 0x00000a00, .size = 0x200},
     {.name = "trace", .enable = LOG_MBOX_TRACE,
         .offset = 0x00000c00, .size = 0x400},
+};
+
+/* mailbox map - must be aligned with SOF platform/mailbox.h */
+/* TODO: unify adsp_imx8_mbox_map with adsp_mbox_map */
+const struct adsp_reg_desc adsp_imx8_mbox_map[ADSP_MBOX_AREAS] = {
+    {.name = "outbox", .enable = LOG_MBOX_OUTBOX,
+        .offset = ADSP_SRAM_OUTBOX_OFFSET, .size = ADSP_SRAM_OUTBOX_SIZE},
+    {.name = "inbox", .enable = LOG_MBOX_INBOX,
+        .offset = ADSP_SRAM_INBOX_OFFSET, .size = ADSP_SRAM_INBOX_SIZE},
+    {.name = "exception", .enable = LOG_MBOX_EXCEPTION,
+        .offset = ADSP_SRAM_EXCEPT_OFFSET, .size = ADSP_SRAM_EXCEPT_SIZE},
+    {.name = "debug", .enable = LOG_MBOX_DEBUG,
+        .offset = ADSP_SRAM_DEBUG_OFFSET, .size = ADSP_SRAM_DEBUG_SIZE},
+    {.name = "stream", .enable = LOG_MBOX_STREAM,
+        .offset = ADSP_SRAM_STREAM_OFFSET, .size = ADSP_SRAM_TRACE_SIZE},
+    {.name = "trace", .enable = LOG_MBOX_TRACE,
+        .offset = ADSP_SRAM_TRACE_OFFSET, .size = ADSP_SRAM_TRACE_SIZE},
 };
 
 static void mbox_reset(void *opaque)
