@@ -118,13 +118,13 @@ static int sof_module_memcpy(struct adsp_dev *adsp,
 
 		switch (block->type) {
 		case SOF_FW_BLK_TYPE_RSRVD0:
-		case SOF_FW_BLK_TYPE_SRAM:
 		case SOF_FW_BLK_TYPE_ROM:
 		case SOF_FW_BLK_TYPE_IMR:
 		case SOF_FW_BLK_TYPE_RSRVD6:
 			continue;	/* not handled atm */
 		case SOF_FW_BLK_TYPE_IRAM:
 		case SOF_FW_BLK_TYPE_DRAM:
+		case SOF_FW_BLK_TYPE_SRAM:
 			fprintf(stdout, "data: 0x%x size 0x%x\n",
 				board->mem_zones[block->type].base + block->offset - board->mem_zones[block->type].host_offset,
 				block->size);
