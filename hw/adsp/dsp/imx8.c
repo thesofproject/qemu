@@ -1,4 +1,4 @@
-/* Core DSP support for i.MX8 audio DSP.
+/* Core DSP support for i.MX8 audio DSP
  *
  * Copyright 2020 NXP
  *
@@ -189,6 +189,11 @@ static struct adsp_reg_space imx8_io[] = {
         .reg = adsp_imx8_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
         .desc = {.base = ADSP_IMX8_DSP_MAILBOX_BASE,
         .size = ADSP_IMX8_DSP_MAILBOX_SIZE},},
+    { .name = "mu", .reg_count = ARRAY_SIZE(adsp_imx8_mu_map),
+        .reg = adsp_imx8_mu_map, .init = &adsp_imx8_mu_init,
+        .ops = &imx8_mu_ops,
+        .desc = {.base = ADSP_IMX8_DSP_MU_BASE,
+        .size = ADSP_IMX8_DSP_MU_SIZE},},
 };
 
 /* hardware memory map */

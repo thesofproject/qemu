@@ -28,6 +28,7 @@
 #include "qemu/io-bridge.h"
 #include "hw/adsp/shim.h"
 #include "hw/adsp/log.h"
+#include "hw/adsp/mu.h"
 
 const struct adsp_reg_desc adsp_byt_shim_map[] = {
     {.name = "csr", .enable = LOG_SHIM_CSR, .offset = 0x0},
@@ -151,6 +152,19 @@ const struct adsp_reg_desc adsp_bxt_shim_map[] = {
     {.name = "exttl", .enable = LOG_SHIM_EXTTL, .offset = 0xc0},
     {.name = "extth", .enable = LOG_SHIM_EXTTH, .offset = 0xc4},
     {.name = "extst", .enable = LOG_SHIM_EXTST, .offset = 0xc8},
+};
+
+const struct adsp_reg_desc adsp_imx8_mu_map[] = {
+    {.name = "tr0", .enable = LOG_MU_TR0, .offset = 0x0},
+    {.name = "tr1", .enable = LOG_MU_TR1, .offset = 0x4},
+    {.name = "tr2", .enable = LOG_MU_TR2, .offset = 0x8},
+    {.name = "tr3", .enable = LOG_MU_TR3, .offset = 0xC},
+    {.name = "rr0", .enable = LOG_MU_RR0, .offset = 0x10},
+    {.name = "rr1", .enable = LOG_MU_RR1, .offset = 0x14},
+    {.name = "rr2", .enable = LOG_MU_RR2, .offset = 0x18},
+    {.name = "rr3", .enable = LOG_MU_RR3, .offset = 0x1C},
+    {.name = "sr", .enable = LOG_MU_SR, .offset = 0x20},
+    {.name = "cr", .enable = LOG_MU_CR, .offset = 0x24},
 };
 
 struct adsp_log *log_init(const char *log_name, const char *args)
