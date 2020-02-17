@@ -26,6 +26,7 @@
 #include "hw/audio/adsp-dev.h"
 #include "hw/adsp/log.h"
 #include "hw/adsp/imx8.h"
+#include "hw/adsp/dsp/mbox.h"
 #include "imx8.h"
 #include "common.h"
 #include "hw/adsp/fw.h"
@@ -134,6 +135,44 @@ static struct adsp_dev *adsp_init(const struct adsp_desc *board,
     return adsp;
 }
 
+static uint64_t io_read(void *opaque, hwaddr addr,
+        unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    struct adsp_dev *adsp = info->adsp;
+    struct adsp_reg_space *space = info->space;
+
+    log_read(adsp->log, space, addr, size,
+        info->region[addr >> 2]);
+
+    return info->region[addr >> 2];
+}
+
+/* MBOX IO from ADSP */
+static void io_write(void *opaque, hwaddr addr,
+        uint64_t val, unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    struct adsp_dev *adsp = info->adsp;
+    struct adsp_reg_space *space = info->space;
+
+    info->region[addr >> 2] = val;
+
+    /* omit 0 writes as it fills mbox log */
+    if (val == 0) {
+        return;
+    }
+
+    log_write(adsp->log, space, addr, val, size,
+         info->region[addr >> 2]);
+}
+
+static const MemoryRegionOps mbox_io_ops = {
+    .read = io_read,
+    .write = io_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+};
+
 static struct adsp_mem_desc imx8_mem[] = {
     {.name = "iram", .base = ADSP_IMX8_DSP_IRAM_BASE,
         .size = ADSP_IMX8_IRAM_SIZE},
@@ -146,6 +185,10 @@ static struct adsp_mem_desc imx8_mem[] = {
 };
 
 static struct adsp_reg_space imx8_io[] = {
+    { .name = "mbox", .reg_count = ARRAY_SIZE(adsp_imx8_mbox_map),
+        .reg = adsp_imx8_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
+        .desc = {.base = ADSP_IMX8_DSP_MAILBOX_BASE,
+        .size = ADSP_IMX8_DSP_MAILBOX_SIZE},},
 };
 
 /* hardware memory map */
