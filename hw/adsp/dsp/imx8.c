@@ -185,6 +185,50 @@ static struct adsp_mem_desc imx8_mem[] = {
         .size = ADSP_IMX8_SDRAM1_SIZE},
 };
 
+static struct adsp_reg_space imx8x_io[] = {
+    { .name = "mbox", .reg_count = ARRAY_SIZE(adsp_imx8_mbox_map),
+        .reg = adsp_imx8_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
+        .desc = {.base = ADSP_IMX8_DSP_MAILBOX_BASE,
+        .size = ADSP_IMX8_DSP_MAILBOX_SIZE},},
+    { .name = "mu", .reg_count = ARRAY_SIZE(adsp_imx8_mu_map),
+        .reg = adsp_imx8_mu_map, .init = &adsp_imx8_mu_init,
+        .ops = &imx8_mu_ops,
+        .desc = {.base = ADSP_IMX8_DSP_MU_BASE,
+        .size = ADSP_IMX8_DSP_MU_SIZE},},
+    { .name = "irqstr", .reg_count = ARRAY_SIZE(adsp_imx8_irqstr_map),
+        .reg = adsp_imx8_irqstr_map, .init = &adsp_imx8_irqstr_init,
+        .ops = &irqstr_io_ops,
+        .desc = {.base = ADSP_IMX8X_DSP_IRQSTR_BASE,
+        .size = ADSP_IMX8_DSP_IRQSTR_SIZE},},
+};
+
+/* hardware memory map */
+static const struct adsp_desc imx8x_dsp_desc = {
+    .num_mem = ARRAY_SIZE(imx8_mem),
+    .mem_region = imx8_mem,
+
+    .num_io = ARRAY_SIZE(imx8x_io),
+    .io_dev = imx8x_io,
+
+    .mem_zones = {
+                [SOF_FW_BLK_TYPE_IRAM] = {
+                        .base = ADSP_IMX8_DSP_IRAM_BASE,
+                        .size = ADSP_IMX8_IRAM_SIZE,
+                        .host_offset = ADSP_IMX8_HOST_IRAM_OFFSET,
+                },
+                [SOF_FW_BLK_TYPE_DRAM] = {
+                        .base = ADSP_IMX8_DSP_DRAM_BASE,
+                        .size = ADSP_IMX8_DRAM_SIZE,
+                        .host_offset = 0,
+                },
+                [SOF_FW_BLK_TYPE_SRAM] = {
+                        .base = ADSP_IMX8_DSP_SDRAM0_BASE,
+                        .size = ADSP_IMX8_SDRAM0_SIZE + ADSP_IMX8_SDRAM1_SIZE,
+                        .host_offset = 0,
+                },
+        },
+};
+
 static struct adsp_reg_space imx8_io[] = {
     { .name = "mbox", .reg_count = ARRAY_SIZE(adsp_imx8_mbox_map),
         .reg = adsp_imx8_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
@@ -229,10 +273,26 @@ static const struct adsp_desc imx8_dsp_desc = {
         },
 };
 
+static void imx8x_adsp_init(MachineState *machine)
+{
+    adsp_init(&imx8x_dsp_desc, machine, "i.MX8X");
+}
+
 static void imx8_adsp_init(MachineState *machine)
 {
     adsp_init(&imx8_dsp_desc, machine, "i.MX8");
 }
+
+static void xtensa_imx8x_machine_init(MachineClass *mc)
+{
+    mc->desc = "i.MX8X";
+    mc->is_default = true;
+    mc->init = imx8x_adsp_init;
+    mc->max_cpus = 1;
+    mc->default_cpu_type = XTENSA_DEFAULT_CPU_TYPE;
+}
+
+DEFINE_MACHINE("adsp_imx8x", xtensa_imx8x_machine_init)
 
 static void xtensa_imx8_machine_init(MachineClass *mc)
 {

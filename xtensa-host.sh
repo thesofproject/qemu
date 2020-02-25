@@ -71,9 +71,13 @@ case $1 in
  CPU="imx8"
  ADSP="adsp_imx8"
   ;;
+*imx8x)
+ CPU="imx8"
+ ADSP="adsp_imx8x"
+  ;;
 *)
   echo "usage: $0 device"
-  echo "supported devices: byt, cht, hsw, bdw, bxt, sue, cnl, icl, hky, tgl, imx8"
+  echo "supported devices: byt, cht, hsw, bdw, bxt, sue, cnl, icl, hky, tgl, imx8, imx8x"
   ./xtensa-softmmu/qemu-system-xtensa -machine help
   exit
   ;;
