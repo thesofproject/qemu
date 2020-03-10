@@ -10,3 +10,4 @@ obj-y += cavs.o
 obj-y += hikey.o
 obj-y += common.o
 obj-y += imx8.o
+obj-y += imx8m.o
