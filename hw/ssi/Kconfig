@@ -22,3 +22,7 @@ config SSP
 
 config SAI
     bool
+
+config ESAI
+    bool
+    select SSI

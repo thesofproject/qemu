@@ -33,6 +33,7 @@
 #include "irqstr.h"
 #include "hw/dma/edma.h"
 #include "hw/ssi/sai.h"
+#include "hw/ssi/esai.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -211,6 +212,11 @@ static struct adsp_reg_space imx8x_io[] = {
         .ops = &sai_ops,
         .desc = {.base = ADSP_IMX8_SAI_1_BASE,
         .size = ADSP_IMX8_SAI_1_SIZE},},
+    { .name = "esai", .reg_count = ARRAY_SIZE(adsp_esai_map),
+        .reg = adsp_esai_map, .init = &adsp_esai_init,
+        .ops = &esai_ops,
+        .desc = {.base = ADSP_IMX8_ESAI_BASE,
+        .size = ADSP_IMX8_ESAI_SIZE},},
 };
 
 /* hardware memory map */
@@ -264,6 +270,11 @@ static struct adsp_reg_space imx8_io[] = {
         .ops = &sai_ops,
         .desc = {.base = ADSP_IMX8_SAI_1_BASE,
         .size = ADSP_IMX8_SAI_1_SIZE},},
+    { .name = "esai", .reg_count = ARRAY_SIZE(adsp_esai_map),
+        .reg = adsp_esai_map, .init = &adsp_esai_init,
+        .ops = &esai_ops,
+        .desc = {.base = ADSP_IMX8_ESAI_BASE,
+        .size = ADSP_IMX8_ESAI_SIZE},},
 };
 
 /* hardware memory map */

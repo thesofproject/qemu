@@ -130,6 +130,7 @@
 
 /* SAI Logging */
 #define LOG_SAI 1
+#define LOG_ESAI 1
 
 struct adsp_log {
 	GMutex mutex;
