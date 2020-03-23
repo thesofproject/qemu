@@ -41,6 +41,9 @@
 #define ADSP_IMX8M_DSP_MU_BASE       XSHAL_MU2_SIDEB_BYPASS_PADDR
 #define ADSP_IMX8M_DSP_MU_SIZE         0x10000
 
+#define ADSP_IMX8M_SAI_3_BASE     0x30c30000
+#define ADSP_IMX8M_SAI_3_SIZE     0x00010000
+
 #define ADSP_IMX8M_DSP_MAILBOX_BASE      0x92C00000
 
 /* Mailbox configuration */

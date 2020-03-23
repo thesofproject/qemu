@@ -19,3 +19,6 @@ config STM32F2XX_SPI
 
 config SSP
     bool
+
+config SAI
+    bool

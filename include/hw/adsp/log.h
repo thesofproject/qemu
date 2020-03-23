@@ -128,6 +128,9 @@
 /* SSP Logging */
 #define LOG_SSP 1
 
+/* SAI Logging */
+#define LOG_SAI 1
+
 struct adsp_log {
 	GMutex mutex;
 	FILE *file;

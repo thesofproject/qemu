@@ -32,6 +32,7 @@
 #include "hw/adsp/fw.h"
 #include "irqstr.h"
 #include "hw/dma/sdma.h"
+#include "hw/ssi/sai.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -210,6 +211,11 @@ static struct adsp_reg_space imx8m_io[] = {
         .init = &sdma_init_dev, .ops = &sdma_ops,
         .desc = {.base = ADSP_IMX8M_DSP_SDMA_BASE,
         .size = ADSP_IMX8M_DSP_SDMA_SIZE},},
+    { .name = "sai", .reg_count = ARRAY_SIZE(adsp_sai_map),
+        .reg = adsp_sai_map, .init = &adsp_sai_init,
+        .ops = &sai_ops,
+        .desc = {.base = ADSP_IMX8M_SAI_3_BASE,
+        .size = ADSP_IMX8M_SAI_3_SIZE},},
 };
 
 /* hardware memory map */
