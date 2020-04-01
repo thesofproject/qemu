@@ -209,7 +209,7 @@ static struct adsp_reg_space imx8m_io[] = {
         .reg = adsp_sdma_map,
         .init = &sdma_init_dev, .ops = &sdma_ops,
         .desc = {.base = ADSP_IMX8M_DSP_SDMA_BASE,
-        .size = ADSP_IMX8M_DSP_SDMA_BASE},},
+        .size = ADSP_IMX8M_DSP_SDMA_SIZE},},
 };
 
 /* hardware memory map */
