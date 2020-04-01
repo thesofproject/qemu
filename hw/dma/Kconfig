@@ -29,3 +29,6 @@ config DW_DMA_PCI
 
 config HDA_DMA_DSP
     bool
+
+config EDMA_DSP
+    bool

@@ -31,6 +31,7 @@
 #include "common.h"
 #include "hw/adsp/fw.h"
 #include "irqstr.h"
+#include "hw/dma/edma.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -200,6 +201,10 @@ static struct adsp_reg_space imx8x_io[] = {
         .ops = &irqstr_io_ops,
         .desc = {.base = ADSP_IMX8X_DSP_IRQSTR_BASE,
         .size = ADSP_IMX8_DSP_IRQSTR_SIZE},},
+    { .name = "edma", .reg_count = ARRAY_SIZE(adsp_edma_map),
+        .reg = adsp_edma_map, .irq = EDMA_CH_INT,
+        .init = &edma_init_dev, .ops = &edma_ops,
+        .desc = {.base = ADSP_IMX8_EDMA0_BASE, .size = ADSP_IMX8_EDMA0_SIZE},},
 };
 
 /* hardware memory map */
@@ -244,6 +249,10 @@ static struct adsp_reg_space imx8_io[] = {
         .ops = &irqstr_io_ops,
         .desc = {.base = ADSP_IMX8_DSP_IRQSTR_BASE,
         .size = ADSP_IMX8_DSP_IRQSTR_SIZE},},
+    { .name = "edma", .reg_count = ARRAY_SIZE(adsp_edma_map),
+        .reg = adsp_edma_map, .irq = EDMA_CH_INT,
+        .init = &edma_init_dev, .ops = &edma_ops,
+        .desc = {.base = ADSP_IMX8_EDMA0_BASE, .size = ADSP_IMX8_EDMA0_SIZE},},
 };
 
 /* hardware memory map */
