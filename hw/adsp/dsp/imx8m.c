@@ -31,6 +31,7 @@
 #include "common.h"
 #include "hw/adsp/fw.h"
 #include "irqstr.h"
+#include "hw/dma/sdma.h"
 
 static void adsp_reset(void *opaque)
 {
@@ -204,6 +205,11 @@ static struct adsp_reg_space imx8m_io[] = {
         .ops = &irqstr_io_ops,
         .desc = {.base = ADSP_IMX8M_DSP_IRQSTR_BASE,
         .size = ADSP_IMX8M_DSP_IRQSTR_SIZE},},
+    { .name = "sdma", .reg_count = ARRAY_SIZE(adsp_sdma_map),
+        .reg = adsp_sdma_map,
+        .init = &sdma_init_dev, .ops = &sdma_ops,
+        .desc = {.base = ADSP_IMX8M_DSP_SDMA_BASE,
+        .size = ADSP_IMX8M_DSP_SDMA_BASE},},
 };
 
 /* hardware memory map */

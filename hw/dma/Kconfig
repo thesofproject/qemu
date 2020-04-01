@@ -32,3 +32,6 @@ config HDA_DMA_DSP
 
 config EDMA_DSP
     bool
+
+config SDMA_DSP
+    bool

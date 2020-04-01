@@ -16,6 +16,8 @@ common-obj-$(CONFIG_DW_DMA_PCI) += dw-dma-core.o dw-dma-pci.o
 
 common-obj-$(CONFIG_EDMA_DSP) += edma-core.o edma-dsp.o
 
+common-obj-$(CONFIG_SDMA_DSP) += sdma-core.o sdma-dsp.o
+
 common-obj-$(CONFIG_HDA_DMA_DSP) += hda-dma-core.o hda-dma-dsp.o
 common-obj-$(CONFIG_HDA_DMA_PCI) += hda-dma-core.o hda-dma-pci.o
 
