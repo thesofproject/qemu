@@ -366,7 +366,7 @@ static struct adsp_dev *adsp_init(const struct adsp_desc *board,
     struct adsp_dev *adsp;
     struct adsp_mem_desc *mem;
     void *man_ptr, *desc_ptr;
-    int n, skip = 0, size;
+    int n, skip, size;
     void *rom;
 
     adsp = g_malloc(sizeof(*adsp));
@@ -461,8 +461,10 @@ static struct adsp_dev *adsp_init(const struct adsp_desc *board,
         goto out;
     }
 
+    skip = adsp_get_ext_man_size(man_ptr);
+
     /* Search for manifest ID = "$AEM" */
-    desc_ptr = man_ptr;
+    desc_ptr = (uint8_t *)man_ptr + skip;
     while (*((uint32_t*)desc_ptr) != 0x314d4124) {
         desc_ptr = desc_ptr + sizeof(uint32_t);
         skip += sizeof(uint32_t);

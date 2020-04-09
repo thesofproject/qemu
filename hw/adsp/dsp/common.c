@@ -35,6 +35,9 @@
 #include "hw/adsp/log.h"
 #include "common.h"
 
+/* In ASCII `XMan` */
+#define SND_SOF_EXT_MAN_MAGIC_NUMBER	0x6e614d58
+
 void adsp_set_lvl1_irq(struct adsp_dev *adsp, int irq, int active)
 {
     /* TODO: allow interrupts other cores than core 0 */
@@ -298,11 +301,29 @@ static int sst_load_modules(struct adsp_dev *adsp, void *fw,
 	return 0;
 }
 
+uint32_t adsp_get_ext_man_size(const uint32_t *fw)
+{
+	/*
+	 * When fw points to extended manifest,
+	 * then first u32 must be equal SOF_EXT_MAN_MAGIC_NUMBER.
+	 */
+	if (fw[0] == SOF_EXT_MAN_MAGIC_NUMBER)
+		return fw[1];
+
+	/* otherwise given fw don't have an extended manifest */
+	return 0;
+}
+
 int adsp_load_modules(struct adsp_dev *adsp, void *fw, size_t size)
 {
 	struct snd_sof_fw_header *sof_header;
 	struct snd_sst_fw_header *sst_header;
+	int ext_man_size;
 	int ret;
+
+	ext_man_size = adsp_get_ext_man_size(fw);
+	fw = (uint8_t *)fw + ext_man_size;
+	size -= ext_man_size;
 
 	sof_header = (struct snd_sof_fw_header *)fw;
 	ret = sof_check_header(adsp, sof_header, size);

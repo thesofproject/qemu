@@ -110,6 +110,7 @@ struct adsp_desc {
 	struct adsp_dev_ops *ops;
 };
 
+uint32_t adsp_get_ext_man_size(const uint32_t *fw);
 int adsp_load_modules(struct adsp_dev *adsp, void *fw, size_t size);
 
 struct adsp_dev;
