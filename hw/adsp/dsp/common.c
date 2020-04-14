@@ -305,9 +305,9 @@ uint32_t adsp_get_ext_man_size(const uint32_t *fw)
 {
 	/*
 	 * When fw points to extended manifest,
-	 * then first u32 must be equal SOF_EXT_MAN_MAGIC_NUMBER.
+	 * then first u32 must be equal SND_SOF_EXT_MAN_MAGIC_NUMBER.
 	 */
-	if (fw[0] == SOF_EXT_MAN_MAGIC_NUMBER)
+	if (fw[0] == SND_SOF_EXT_MAN_MAGIC_NUMBER)
 		return fw[1];
 
 	/* otherwise given fw don't have an extended manifest */
