@@ -31,4 +31,6 @@
 /* General Purpose Interrupt Request */
 #define IMX_MU_xCR_GIRn(x)      BIT(16 + (3 - (x)))
 
+#define MU_BASE_SIDEA	0x5D280000
+
 #endif
