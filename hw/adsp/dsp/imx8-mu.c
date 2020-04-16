@@ -51,12 +51,69 @@ static void mu_write(void *opaque, hwaddr addr,
     struct adsp_io_info *info = opaque;
     struct adsp_dev *adsp = info->adsp;
     struct adsp_reg_space *space = info->space;
+    struct qemu_io_msg_irq irq;
+    uint64_t xsr;
 
     log_write(adsp->log, space, addr, val, size,
         info->region[addr >> 2]);
 
-    /* set value via SHM */
+    /* Interrupt arrived, check src */
     info->region[addr >> 2] = val;
+
+    switch (addr) {
+    case IMX_MU_xCR:
+
+        /* send IRQ to parent */
+        irq.hdr.type = QEMU_IO_TYPE_IRQ;
+        irq.hdr.msg = QEMU_IO_MSG_IRQ;
+        irq.hdr.size = sizeof(irq);
+        irq.irq = 0;
+
+        /* send a new message to host */
+        if (val & IMX_MU_xCR_GIRn(1)) {
+            /* activate pending bit on MU Side A */
+            xsr = adsp->mu_a->region[IMX_MU_xSR >> 2] & ~0;
+            xsr |= IMX_MU_xSR_GIPn(1);
+            adsp->mu_a->region[IMX_MU_xSR >> 2] = xsr;
+            qemu_io_send_msg(&irq.hdr);
+        }
+
+        /* send reply to host */
+        if (val & IMX_MU_xCR_GIRn(0)) {
+            /* TODO: currently activates pending bit on MU Side B */
+            xsr = adsp->mu_a->region[IMX_MU_xSR >> 2] & ~0;
+            xsr |= IMX_MU_xSR_GIPn(0);
+            adsp->mu_a->region[IMX_MU_xSR >> 2] = xsr;
+            qemu_io_send_msg(&irq.hdr);
+        }
+
+        break;
+    case IMX_MU_xSR:
+        break;
+    default:
+        break;
+    }
+}
+
+void adsp_imx8_irq_msg(struct adsp_dev *adsp, struct qemu_io_msg *msg)
+{
+    struct adsp_io_info *info = adsp->mu_b;
+    uint64_t xcr, xsr;
+
+    xcr = info->region[IMX_MU_xCR >> 2];
+
+    /* reply arrived from host */
+    if (xcr & IMX_MU_xCR_GIRn(1)) {
+        /* set pending bit for reply on DSP */
+        xsr = info->region[IMX_MU_xSR >> 2] & ~0;
+        xsr |= IMX_MU_xSR_GIPn(1);
+        info->region[IMX_MU_xSR >> 2] = xsr;
+    } else {
+        /* new message arrived from host, so activate pending bit */
+        xsr = info->region[IMX_MU_xSR >> 2] & ~0;
+        xsr |= IMX_MU_xSR_GIPn(0);
+        info->region[IMX_MU_xSR >> 2] = xsr;
+    }
 }
 
 const MemoryRegionOps imx8_mu_ops = {
@@ -69,4 +126,9 @@ void adsp_imx8_mu_init(struct adsp_dev *adsp, MemoryRegion *parent,
         struct adsp_io_info *info)
 {
     mu_reset(info);
+    if (!strcmp(info->space->name, "mu_13a")) {
+        adsp->mu_a = info;
+    } else {
+        adsp->mu_b = info;
+    }
 }

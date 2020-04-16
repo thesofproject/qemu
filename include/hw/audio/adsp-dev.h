@@ -42,9 +42,10 @@ struct adsp_dev_ops {
 };
 
 struct adsp_dev {
-
-    struct adsp_io_info *shim;
-    int shm_idx;
+	struct adsp_io_info *mu_a;
+	struct adsp_io_info *mu_b;
+	struct adsp_io_info *shim;
+	int shm_idx;
 
 	/* runtime CPU */
 	struct adsp_xtensa *xtensa[ADSP_MAX_CORES];

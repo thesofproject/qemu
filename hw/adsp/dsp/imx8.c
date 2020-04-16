@@ -56,6 +56,7 @@ static int bridge_cb(void *data, struct qemu_io_msg *msg)
     case QEMU_IO_TYPE_REG:
         break;
     case QEMU_IO_TYPE_IRQ:
+        adsp_imx8_irq_msg(adsp, msg);
         break;
     case QEMU_IO_TYPE_PM:
         adsp_pm_msg(adsp, msg);
@@ -251,7 +252,12 @@ static struct adsp_reg_space imx8_io[] = {
         .reg = adsp_imx8_mbox_map, .init = &adsp_mbox_init, .ops = &mbox_io_ops,
         .desc = {.base = ADSP_IMX8_DSP_MAILBOX_BASE,
         .size = ADSP_IMX8_DSP_MAILBOX_SIZE},},
-    { .name = "mu", .reg_count = ARRAY_SIZE(adsp_imx8_mu_map),
+    { .name = "mu_13a", .reg_count = ARRAY_SIZE(adsp_imx8_mu_map),
+        .reg = adsp_imx8_mu_map, .init = &adsp_imx8_mu_init,
+        .ops = &imx8_mu_ops,
+        .desc = {.base = ADSP_IMX8_DSP_MU_BASE,
+        .size = ADSP_IMX8_DSP_MU_SIZE},},
+    { .name = "mu_13b", .reg_count = ARRAY_SIZE(adsp_imx8_mu_map),
         .reg = adsp_imx8_mu_map, .init = &adsp_imx8_mu_init,
         .ops = &imx8_mu_ops,
         .desc = {.base = ADSP_IMX8_DSP_MU_BASE,
