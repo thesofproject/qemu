@@ -1,3 +1,14 @@
+
+set -e
+
+die()
+{
+    >&2 printf '%s ERROR: ' "$0"
+    >&2 printf "$@"
+    exit 1
+}
+
+
 if [ $# -lt 1 ]
 then
   echo "usage: $0 device [-k kernel] [-t] [-d] [-i] [-r rom] [-c] [-g] [-o time log]"
@@ -100,6 +111,7 @@ case $key in
     shift # past value
     ;;
     -r|--rom)
+    test -r "$3" || die 'rom file %s not found\n' "$3"
     ROM="-rom $3"
     shift # past argument
     shift # past value
@@ -182,7 +194,7 @@ rm -fr /dev/mqueue/qemu-io-*
 #    (gdb)
 #
 
-echo ./xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS
+echo ./xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS \> "$LOG"
 if [ -z ${TIMEOUT} ]; then
 	./xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
 else
