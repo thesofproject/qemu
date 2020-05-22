@@ -1,6 +1,8 @@
 
 set -e
 
+MY_DIR=$(cd "$(dirname "$0")" && pwd)
+
 die()
 {
     >&2 printf '%s ERROR: ' "$0"
@@ -93,7 +95,7 @@ case $1 in
 *)
   echo "usage: $0 device"
   echo "supported devices: byt, cht, hsw, bdw, bxt, sue, cnl, icl, hky, tgl, imx8, imx8x, imx8m"
-  ./xtensa-softmmu/qemu-system-xtensa -machine help
+  "${MY_DIR}"/xtensa-softmmu/qemu-system-xtensa -machine help
   exit
   ;;
 esac
@@ -194,10 +196,10 @@ rm -fr /dev/mqueue/qemu-io-*
 #    (gdb)
 #
 
-echo ./xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS \> "$LOG"
+echo "${MY_DIR}"/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS \> "$LOG"
 if [ -z ${TIMEOUT} ]; then
-	./xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
+	"${MY_DIR}"/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
 else
-	timeout --foreground $TIMEOUT ./xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS > $LOG;
+	timeout --foreground $TIMEOUT "${MY_DIR}"/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS > $LOG;
 fi
 
