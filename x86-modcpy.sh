@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # script to copy kernel modules to Poky FS for Qemu
 # Needs to run under sudo for mount and copy to FS
 

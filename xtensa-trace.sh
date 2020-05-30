@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Simple script to trace execution. Can be vastly improved upon.
 #
 # Usage.

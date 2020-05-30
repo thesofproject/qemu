@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if [ $# -eq 0 ]
 then
   echo "usage: $0 device kernel fs_image.ext4"
