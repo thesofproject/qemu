@@ -391,6 +391,5 @@ void qemu_io_free_shm(int region)
         /* client or host can unlink this, so it gets done twice */
         shm_unlink(_iob.shm[region].name);
         close(_iob.shm[region].fd);
-        _iob.shm[region].fd = 0;
     }
 }
