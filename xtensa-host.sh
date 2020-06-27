@@ -197,7 +197,7 @@ rm -fr /dev/mqueue/qemu-io-*
 #    (gdb)
 #
 
-echo "${MY_DIR}"/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS \> "$LOG"
+set -x
 if [ -z ${TIMEOUT} ]; then
 	"${MY_DIR}"/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
 else
