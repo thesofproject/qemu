@@ -43,6 +43,7 @@ struct adsp_dev_ops {
 
 struct adsp_dev {
 
+    struct adsp_io_info *mu;
     struct adsp_io_info *shim;
     int shm_idx;
 

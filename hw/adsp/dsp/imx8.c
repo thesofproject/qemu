@@ -56,6 +56,7 @@ static int bridge_cb(void *data, struct qemu_io_msg *msg)
     case QEMU_IO_TYPE_REG:
         break;
     case QEMU_IO_TYPE_IRQ:
+        adsp_imx8_irq_msg(adsp, msg);
         break;
     case QEMU_IO_TYPE_PM:
         adsp_pm_msg(adsp, msg);
