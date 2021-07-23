@@ -1,3 +1,7 @@
+#!/bin/bash
+
+MYDIR=$(cd "$(dirname "$0")" && pwd)
+
 if [ $# -lt 1 ]
 then
   echo "usage: $0 device [-k kernel] [-t] [-d] [-i] [-r rom] [-c] [-g] [-o time log]"
@@ -183,9 +187,9 @@ rm -fr /dev/mqueue/qemu-io-*
 #
 
 echo ./build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS
-if [ -z ${TIMEOUT} ]; then
-	./build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
+if [ -z "${TIMEOUT}" ]; then
+	"$MYDIR"/build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
 else
-	timeout --foreground $TIMEOUT ./build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS > $LOG;
+	timeout --foreground "$TIMEOUT" "$MYDIR"/build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS > $LOG;
 fi
 
