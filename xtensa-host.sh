@@ -186,10 +186,12 @@ rm -fr /dev/mqueue/qemu-io-*
 #    (gdb)
 #
 
-echo ./build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS
+printf '%s: note a missing firmware is misreported as "invalid signature"\n' "$0"
 if [ -z "${TIMEOUT}" ]; then
+	set -x
 	"$MYDIR"/build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS -semihosting;
 else
+	printf '%s: leaving firmware a %.2f seconds chance to produce the expected output, then terminating it.\n' "$0" "$TIMEOUT"
+	set -x
 	timeout --foreground "$TIMEOUT" "$MYDIR"/build/xtensa-softmmu/qemu-system-xtensa -cpu $CPU -M $ADSP $TARGS $DARGS $IARGS -nographic $KERNEL $ROM $CARGS $GARGS > $LOG;
 fi
-
