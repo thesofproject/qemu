@@ -67,13 +67,14 @@ void check_interrupts(CPUXtensaState *env)
 static void xtensa_set_irq(void *opaque, int irq, int active)
 {
     CPUXtensaState *env = opaque;
-
+	 qemu_log("%s: irq %d active %d\n", __func__, irq, active);
     if (irq >= env->config->ninterrupt) {
         qemu_log("%s: bad IRQ %d\n", __func__, irq);
     } else {
         uint32_t irq_bit = 1 << irq;
 
         if (active) {
+            env->irq_counts[irq]++;
             qatomic_or(&env->sregs[INTSET], irq_bit);
         } else if (env->config->interrupt[irq].inttype == INTTYPE_LEVEL) {
             qatomic_and(&env->sregs[INTSET], ~irq_bit);

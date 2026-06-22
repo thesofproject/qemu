@@ -21,6 +21,7 @@ bool qemu_log_separate(void);
 #define CPU_LOG_INT        (1u << 4)
 #define CPU_LOG_EXEC       (1u << 5)
 #define CPU_LOG_PCALL      (1u << 6)
+#define CPU_LOG_FUNC       (1u << 7)
 #define CPU_LOG_TB_CPU     (1u << 8)
 #define CPU_LOG_RESET      (1u << 9)
 #define LOG_UNIMP          (1u << 10)
@@ -38,6 +39,7 @@ bool qemu_log_separate(void);
 #define CPU_LOG_TB_VPU     (1u << 21)
 #define LOG_TB_OP_PLUGIN   (1u << 22)
 #define LOG_INVALID_MEM    (1u << 23)
+#define CPU_LOG_CACHE      (1u << 24)
 
 /* Lock/unlock output. */
 

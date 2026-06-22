@@ -508,6 +508,8 @@ const QEMULogItem qemu_log_items[] = {
       "log MMU-related activities" },
     { CPU_LOG_PCALL, "pcall",
       "x86 only: show protected mode far calls/returns/exceptions" },
+    { CPU_LOG_FUNC, "func",
+      "show function entry/returns" },
     { CPU_LOG_RESET, "cpu_reset",
       "show CPU state before CPU resets" },
     { LOG_UNIMP, "unimp",
@@ -531,6 +533,8 @@ const QEMULogItem qemu_log_items[] = {
       "include VPU registers in the 'cpu' logging" },
     { LOG_INVALID_MEM, "invalid_mem",
       "log invalid memory accesses" },
+    { CPU_LOG_CACHE, "cache",
+      "log Xtensa cache hits, misses, evictions, and invalidations" },
     { 0, NULL, NULL },
 };
 

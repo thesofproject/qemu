@@ -31,6 +31,8 @@
 #include "qemu/units.h"
 #include "cpu.h"
 #include "exec/helper-proto.h"
+
+extern void __attribute__((weak)) ace_log_prefix(void);
 #include "qemu/host-utils.h"
 #include "exec/cputlb.h"
 #include "accel/tcg/cpu-mmu-index.h"
@@ -78,6 +80,11 @@ void HELPER(wsr_rasid)(CPUXtensaState *env, uint32_t v)
 {
     v = (v & 0xffffff00) | 0x1;
     if (v != env->sregs[RASID]) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "WSR_RASID: 0x%08x -> 0x%08x (flushing TLB)\n",
+                      env->sregs[RASID], v);
+        }
         env->sregs[RASID] = v;
         tlb_flush(env_cpu(env));
     }
@@ -106,6 +113,9 @@ static uint32_t get_page_size(const CPUXtensaState *env,
 /*!
  * Get bit mask for the virtual address bits translated by the TLB way
  */
+
+static unsigned get_ring(const CPUXtensaState *env, uint8_t asid);
+
 static uint32_t xtensa_tlb_get_addr_mask(const CPUXtensaState *env,
                                          bool dtlb, uint32_t way)
 {
@@ -285,6 +295,14 @@ static void xtensa_tlb_set_entry_mmu(const CPUXtensaState *env,
     entry->paddr = pte & xtensa_tlb_get_addr_mask(env, dtlb, wi);
     entry->asid = (env->sregs[RASID] >> ((pte >> 1) & 0x18)) & 0xff;
     entry->attr = pte & 0xf;
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+        if (ace_log_prefix) { ace_log_prefix(); }
+        qemu_log_mask(CPU_LOG_MMU,
+                  "TLB %s set_entry_mmu: way=%u entry=%u vpn=0x%08x pte=0x%08x -> "
+                  "vaddr=0x%08x paddr=0x%08x ring=%d asid=0x%02x attr=0x%x\n",
+                  dtlb ? "D" : "I", wi, ei, vpn, pte,
+                  entry->vaddr, entry->paddr, (pte >> 4) & 3, entry->asid, entry->attr);
+    }
 }
 
 static void xtensa_tlb_set_entry(CPUXtensaState *env, bool dtlb,
@@ -297,6 +315,12 @@ static void xtensa_tlb_set_entry(CPUXtensaState *env, bool dtlb,
     if (xtensa_option_enabled(env->config, XTENSA_OPTION_MMU)) {
         if (entry->variable) {
             if (entry->asid) {
+                if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                    if (ace_log_prefix) { ace_log_prefix(); }
+                    qemu_log_mask(CPU_LOG_MMU,
+                              "TLB %s flushing old entry: way=%u entry=%u vaddr=0x%08x paddr=0x%08x ring=%u asid=0x%02x attr=0x%x\n",
+                              dtlb ? "D" : "I", wi, ei, entry->vaddr, entry->paddr, get_ring(env, entry->asid), entry->asid, entry->attr);
+                }
                 tlb_flush_page(cs, entry->vaddr);
             }
             xtensa_tlb_set_entry_mmu(env, entry, dtlb, wi, ei, vpn, pte);
@@ -413,6 +437,10 @@ static void reset_tlb_region_way0(CPUXtensaState *env,
 void reset_mmu(CPUXtensaState *env)
 {
     if (xtensa_option_enabled(env->config, XTENSA_OPTION_MMU)) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "Reset MMU: RASID=0x04030201 autorefill_idx=0\n");
+        }
         env->sregs[RASID] = 0x04030201;
         env->sregs[ITLBCFG] = 0;
         env->sregs[DTLBCFG] = 0;
@@ -421,6 +449,25 @@ void reset_mmu(CPUXtensaState *env)
         reset_tlb_mmu_all_ways(env, &env->config->dtlb, env->dtlb);
         reset_tlb_mmu_ways56(env, &env->config->itlb, env->itlb);
         reset_tlb_mmu_ways56(env, &env->config->dtlb, env->dtlb);
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "Reset MMU: TLB initialization complete. Initial unmapped variable pages (Ways 0-4) default to asid=0 (attr=0).\n");
+        }
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "Reset MMU: Static cached/bypassed hardware memory defaults:\n");
+        }
+        for (unsigned wi = 0; wi < env->config->dtlb.nways; ++wi) {
+            for (unsigned ei = 0; ei < env->config->dtlb.way_size[wi]; ++ei) {
+                if (env->dtlb[wi][ei].asid) {
+                    if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                        if (ace_log_prefix) { ace_log_prefix(); }
+                        qemu_log_mask(CPU_LOG_MMU, "  way=%u entry=%u vaddr=0x%08x paddr=0x%08x ring=%u asid=0x%02x attr=0x%x\n",
+                                  wi, ei, env->dtlb[wi][ei].vaddr, env->dtlb[wi][ei].paddr, get_ring(env, env->dtlb[wi][ei].asid), env->dtlb[wi][ei].asid, env->dtlb[wi][ei].attr);
+                    }
+                }
+            }
+        }
     } else if (xtensa_option_enabled(env->config, XTENSA_OPTION_MPU)) {
         unsigned i;
 
@@ -480,6 +527,12 @@ static int xtensa_tlb_lookup(const CPUXtensaState *env,
             unsigned ring = get_ring(env, entry[wi][ei].asid);
             if (ring < 4) {
                 if (++nhits > 1) {
+                    if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                        if (ace_log_prefix) { ace_log_prefix(); }
+                        qemu_log_mask(CPU_LOG_MMU,
+                                  "TLB %s lookup multi-hit: addr=0x%08x way=%u entry=%u\n",
+                                  dtlb ? "D" : "I", addr, wi, ei);
+                    }
                     return dtlb ?
                         LOAD_STORE_TLB_MULTI_HIT_CAUSE :
                         INST_TLB_MULTI_HIT_CAUSE;
@@ -487,7 +540,23 @@ static int xtensa_tlb_lookup(const CPUXtensaState *env,
                 *pwi = wi;
                 *pei = ei;
                 *pring = ring;
+                if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                    if (ace_log_prefix) { ace_log_prefix(); }
+                    qemu_log_mask(CPU_LOG_MMU,
+                              "TLB %s lookup hit: addr=0x%08x vpn=0x%08x way=%u entry=%u "
+                              "vaddr=0x%08x paddr=0x%08x asid=0x%02x attr=0x%x ring=%u\n",
+                              dtlb ? "D" : "I", addr, vpn, wi, ei,
+                              entry[wi][ei].vaddr, entry[wi][ei].paddr,
+                              entry[wi][ei].asid, entry[wi][ei].attr, ring);
+                }
             }
+        }
+    }
+    if (!nhits) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "TLB %s lookup miss: addr=0x%08x\n",
+                      dtlb ? "D" : "I", addr);
         }
     }
     return nhits ? 0 :
@@ -501,8 +570,20 @@ uint32_t HELPER(rtlb0)(CPUXtensaState *env, uint32_t v, uint32_t dtlb)
         const xtensa_tlb_entry *entry = get_tlb_entry(env, v, dtlb, &wi);
 
         if (entry) {
-            return (entry->vaddr & get_vpn_mask(env, dtlb, wi)) | entry->asid;
+            uint32_t result = (entry->vaddr & get_vpn_mask(env, dtlb, wi)) | entry->asid;
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU,
+                          "RTLB0 %s: v=0x%08x way=%u -> vaddr=0x%08x paddr=0x%08x ring=%u asid=0x%02x attr=0x%x result=0x%08x\n",
+                          dtlb ? "D" : "I", v, wi, entry->vaddr, entry->paddr, get_ring(env, entry->asid), entry->asid, entry->attr, result);
+            }
+            return result;
         } else {
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU, "RTLB0 %s: v=0x%08x entry not found\n",
+                          dtlb ? "D" : "I", v);
+            }
             return 0;
         }
     } else {
@@ -515,8 +596,20 @@ uint32_t HELPER(rtlb1)(CPUXtensaState *env, uint32_t v, uint32_t dtlb)
     const xtensa_tlb_entry *entry = get_tlb_entry(env, v, dtlb, NULL);
 
     if (entry) {
-        return entry->paddr | entry->attr;
+        uint32_t result = entry->paddr | entry->attr;
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
+                      "RTLB1 %s: v=0x%08x -> vaddr=0x%08x paddr=0x%08x ring=%u asid=0x%02x attr=0x%x result=0x%08x\n",
+                      dtlb ? "D" : "I", v, entry->vaddr, entry->paddr, get_ring(env, entry->asid), entry->asid, entry->attr, result);
+        }
+        return result;
     } else {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "RTLB1 %s: v=0x%08x entry not found\n",
+                      dtlb ? "D" : "I", v);
+        }
         return 0;
     }
 }
@@ -527,8 +620,21 @@ void HELPER(itlb)(CPUXtensaState *env, uint32_t v, uint32_t dtlb)
         uint32_t wi;
         xtensa_tlb_entry *entry = get_tlb_entry(env, v, dtlb, &wi);
         if (entry && entry->variable && entry->asid) {
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU,
+                          "ITLB %s: invalidating v=0x%08x way=%u vaddr=0x%08x paddr=0x%08x ring=%u asid=0x%02x attr=0x%x\n",
+                          dtlb ? "D" : "I", v, wi, entry->vaddr, entry->paddr, get_ring(env, entry->asid), entry->asid, entry->attr);
+            }
             tlb_flush_page(env_cpu(env), entry->vaddr);
             entry->asid = 0;
+        } else if (entry) {
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU,
+                          "ITLB %s: cannot invalidate v=0x%08x (variable=%d asid=0x%02x)\n",
+                          dtlb ? "D" : "I", v, entry->variable, entry->asid);
+            }
         }
     }
 }
@@ -541,10 +647,29 @@ uint32_t HELPER(ptlb)(CPUXtensaState *env, uint32_t v, uint32_t dtlb)
         uint8_t ring;
         int res = xtensa_tlb_lookup(env, v, dtlb, &wi, &ei, &ring);
 
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "PTLB %s: v=0x%08x res=%d\n",
+                      dtlb ? "D" : "I", v, res);
+        }
+
         switch (res) {
         case 0:
             if (ring >= xtensa_get_ring(env)) {
-                return (v & 0xfffff000) | wi | (dtlb ? 0x10 : 0x8);
+                uint32_t result = (v & 0xfffff000) | wi | (dtlb ? 0x10 : 0x8);
+                xtensa_tlb_entry *entry = xtensa_tlb_get_entry(env, dtlb, wi, ei);
+                if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                    if (ace_log_prefix) { ace_log_prefix(); }
+                    qemu_log_mask(CPU_LOG_MMU,
+                              "PTLB %s: found way=%u entry=%u vaddr=0x%08x paddr=0x%08x ring=%u asid=0x%02x attr=0x%x result=0x%08x\n",
+                              dtlb ? "D" : "I", wi, ei, entry->vaddr, entry->paddr, ring, entry->asid, entry->attr, result);
+                }
+                return result;
+            }
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU, "PTLB %s: ring check failed (ring=%u < %u)\n",
+                          dtlb ? "D" : "I", ring, xtensa_get_ring(env));
             }
             break;
 
@@ -565,7 +690,19 @@ void HELPER(wtlb)(CPUXtensaState *env, uint32_t p, uint32_t v, uint32_t dtlb)
     uint32_t wi;
     uint32_t ei;
     if (split_tlb_entry_spec(env, v, dtlb, &vpn, &wi, &ei)) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
+                      "WTLB %s: v=0x%08x p=0x%08x -> way=%u entry=%u vpn=0x%08x\n",
+                      dtlb ? "D" : "I", v, p, wi, ei, vpn);
+        }
         xtensa_tlb_set_entry(env, dtlb, wi, ei, vpn, p);
+    } else {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU, "WTLB %s: invalid spec v=0x%08x p=0x%08x\n",
+                      dtlb ? "D" : "I", v, p);
+        }
     }
 }
 
@@ -819,6 +956,15 @@ static int get_physical_addr_mmu(CPUXtensaState *env, bool update_tlb,
     xtensa_tlb_entry tmp_entry;
     int ret = xtensa_tlb_lookup(env, vaddr, dtlb, &wi, &ei, &ring);
 
+    if (ret != 0) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
+                      "TLB %s initial lookup failed: vaddr=0x%08x is_write=%d mmu_idx=%d ret=%d\n",
+                      dtlb ? "D" : "I", vaddr, is_write, mmu_idx, ret);
+        }
+    }
+
     if ((ret == INST_TLB_MISS_CAUSE || ret == LOAD_STORE_TLB_MISS_CAUSE) &&
         may_lookup_pt && get_pte(env, vaddr, &pte)) {
         ring = (pte >> 4) & 0x3;
@@ -829,8 +975,11 @@ static int get_physical_addr_mmu(CPUXtensaState *env, bool update_tlb,
             wi = ++env->autorefill_idx & 0x3;
             xtensa_tlb_set_entry(env, dtlb, wi, ei, vpn, pte);
             env->sregs[EXCVADDR] = vaddr;
-            qemu_log_mask(CPU_LOG_MMU, "%s: autorefill(%08x): %08x -> %08x\n",
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU, "%s: autorefill(%08x): %08x -> %08x\n",
                           __func__, vaddr, vpn, pte);
+            }
         } else {
             xtensa_tlb_set_entry_mmu(env, &tmp_entry, dtlb, wi, ei, vpn, pte);
             entry = &tmp_entry;
@@ -838,6 +987,12 @@ static int get_physical_addr_mmu(CPUXtensaState *env, bool update_tlb,
         ret = 0;
     }
     if (ret != 0) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
+                      "TLB %s error: vaddr=0x%08x is_write=%d cause=%d\n",
+                      dtlb ? "D" : "I", vaddr, is_write, ret);
+        }
         return ret;
     }
 
@@ -846,6 +1001,12 @@ static int get_physical_addr_mmu(CPUXtensaState *env, bool update_tlb,
     }
 
     if (ring < mmu_idx) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
+                      "TLB %s privilege error: vaddr=0x%08x ring=%u < mmu_idx=%d\n",
+                      dtlb ? "D" : "I", vaddr, ring, mmu_idx);
+        }
         return dtlb ?
             LOAD_STORE_PRIVILEGE_CAUSE :
             INST_FETCH_PRIVILEGE_CAUSE;
@@ -854,6 +1015,12 @@ static int get_physical_addr_mmu(CPUXtensaState *env, bool update_tlb,
     *access = mmu_attr_to_access(entry->attr) &
         ~(dtlb ? PAGE_EXEC : PAGE_READ | PAGE_WRITE);
     if (!is_access_granted(*access, is_write)) {
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
+                      "TLB %s protection error: vaddr=0x%08x is_write=%d access=0x%x attr=0x%x\n",
+                      dtlb ? "D" : "I", vaddr, is_write, *access, entry->attr);
+        }
         return dtlb ?
             (is_write ?
              STORE_PROHIBITED_CAUSE :
@@ -863,6 +1030,14 @@ static int get_physical_addr_mmu(CPUXtensaState *env, bool update_tlb,
 
     *paddr = entry->paddr | (vaddr & ~xtensa_tlb_get_addr_mask(env, dtlb, wi));
     *page_size = ~xtensa_tlb_get_addr_mask(env, dtlb, wi) + 1;
+
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+        if (ace_log_prefix) { ace_log_prefix(); }
+        qemu_log_mask(CPU_LOG_MMU,
+                  "TLB %s translate: vaddr=0x%08x -> paddr=0x%08x page_size=0x%x "
+                  "way=%u entry=%u access=0x%x ring=%u\n",
+                  dtlb ? "D" : "I", vaddr, *paddr, *page_size, wi, ei, *access, ring);
+    }
 
     return 0;
 }
@@ -879,13 +1054,19 @@ static bool get_pte(CPUXtensaState *env, uint32_t vaddr, uint32_t *pte)
                                     &paddr, &page_size, &access, false);
 
     if (ret == 0) {
-        qemu_log_mask(CPU_LOG_MMU,
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
                       "%s: autorefill(%08x): PTE va = %08x, pa = %08x\n",
                       __func__, vaddr, pt_vaddr, paddr);
+        }
     } else {
-        qemu_log_mask(CPU_LOG_MMU,
+        if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log_mask(CPU_LOG_MMU,
                       "%s: autorefill(%08x): PTE va = %08x, failed (%d)\n",
                       __func__, vaddr, pt_vaddr, ret);
+        }
     }
 
     if (ret == 0) {
@@ -894,9 +1075,12 @@ static bool get_pte(CPUXtensaState *env, uint32_t vaddr, uint32_t *pte)
         *pte = address_space_ldl(cs->as, paddr, MEMTXATTRS_UNSPECIFIED,
                                  &result);
         if (result != MEMTX_OK) {
-            qemu_log_mask(CPU_LOG_MMU,
+            if (unlikely(qemu_loglevel_mask(CPU_LOG_MMU))) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log_mask(CPU_LOG_MMU,
                           "%s: couldn't load PTE: transaction failed (%u)\n",
                           __func__, (unsigned)result);
+            }
             ret = 1;
         }
     }
@@ -1110,25 +1294,38 @@ static void dump_tlb(CPUXtensaState *env, bool dtlb)
 
             if (entry->asid) {
                 static const char * const cache_text[8] = {
-                    [PAGE_CACHE_BYPASS >> PAGE_CACHE_SHIFT] = "Bypass",
-                    [PAGE_CACHE_WT >> PAGE_CACHE_SHIFT] = "WT",
-                    [PAGE_CACHE_WB >> PAGE_CACHE_SHIFT] = "WB",
-                    [PAGE_CACHE_ISOLATE >> PAGE_CACHE_SHIFT] = "Isolate",
+                    [PAGE_CACHE_BYPASS >> PAGE_CACHE_SHIFT] = "Bypass ",
+                    [PAGE_CACHE_WT >> PAGE_CACHE_SHIFT]     = "WT     ",
+                    [PAGE_CACHE_WB >> PAGE_CACHE_SHIFT]     = "WB     ",
+                    [PAGE_CACHE_ISOLATE >> PAGE_CACHE_SHIFT]= "Isolate",
                 };
                 unsigned access = attr_to_access(entry->attr);
                 unsigned cache_idx = (access & PAGE_CACHE_MASK) >>
                     PAGE_CACHE_SHIFT;
 
+                char asid_desc[16];
+                int ring;
+                for (ring = 0; ring < 4; ring++) {
+                    if (entry->asid == ((env->sregs[RASID] >> (ring * 8)) & 0xff)) {
+                        break;
+                    }
+                }
+                if (ring < 4) {
+                    snprintf(asid_desc, sizeof(asid_desc), "0x%02x (R%d)", entry->asid, ring);
+                } else {
+                    snprintf(asid_desc, sizeof(asid_desc), "0x%02x     ", entry->asid);
+                }
+
                 if (print_header) {
                     print_header = false;
                     qemu_printf("Way %u (%d %s)\n", wi, sz, sz_text);
-                    qemu_printf("\tVaddr       Paddr       ASID  Attr RWX Cache\n"
-                                "\t----------  ----------  ----  ---- --- -------\n");
+                    qemu_printf("\tVaddr       Paddr       ASID        Attr RWX Cache\n"
+                                "\t----------  ----------  ----------  ---- --- -------\n");
                 }
-                qemu_printf("\t0x%08x  0x%08x  0x%02x  0x%02x %c%c%c %s\n",
+                qemu_printf("\t0x%08x  0x%08x  %-10s  0x%02x %c%c%c %s\n",
                             entry->vaddr,
                             entry->paddr,
-                            entry->asid,
+                            asid_desc,
                             entry->attr,
                             (access & PAGE_READ) ? 'R' : '-',
                             (access & PAGE_WRITE) ? 'W' : '-',

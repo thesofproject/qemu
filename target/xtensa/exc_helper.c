@@ -33,6 +33,10 @@
 #include "qemu/host-utils.h"
 #include "qemu/atomic.h"
 #include "qemu/plugin.h"
+#include "exec/log.h"
+#ifndef CONFIG_USER_ONLY
+#include "system/runstate.h"
+#endif
 
 void HELPER(exception)(CPUXtensaState *env, uint32_t excp)
 {
@@ -64,6 +68,31 @@ void HELPER(exception_cause)(CPUXtensaState *env, uint32_t pc, uint32_t cause)
 
     env->sregs[EXCCAUSE] = cause;
     env->sregs[PS] |= PS_EXCM;
+
+    switch (cause) {
+    case ILLEGAL_INSTRUCTION_CAUSE:
+    case INSTRUCTION_FETCH_ERROR_CAUSE:
+    case LOAD_STORE_ERROR_CAUSE:
+    case INTEGER_DIVIDE_BY_ZERO_CAUSE:
+    case PRIVILEGED_CAUSE:
+    case LOAD_STORE_ALIGNMENT_CAUSE:
+    case INSTR_PIF_DATA_ERROR_CAUSE:
+    case LOAD_STORE_PIF_DATA_ERROR_CAUSE:
+    case INSTR_PIF_ADDR_ERROR_CAUSE:
+    case LOAD_STORE_PIF_ADDR_ERROR_CAUSE:
+        qemu_log("ZEPHYR FATAL ERROR / EXCEPTION DETECTED (EXCCAUSE %d)!\n", cause);
+        fprintf(stderr, "ZEPHYR FATAL ERROR / EXCEPTION DETECTED (EXCCAUSE %d)!\n", cause);
+        log_cpu_state(env_cpu(env), 0);
+        cpu_dump_state(env_cpu(env), stderr, 0);
+#ifndef CONFIG_USER_ONLY
+        if (!XTENSA_CPU(env_cpu(env))->continue_on_exception) {
+            qemu_system_guest_panicked(NULL);
+        }
+#endif
+        break;
+    default:
+        break;
+    }
 
     HELPER(exception)(env, vector);
 }
@@ -106,6 +135,33 @@ void HELPER(waiti)(CPUXtensaState *env, uint32_t pc, uint32_t intlevel)
         (intlevel << PS_INTLEVEL_SHIFT);
 
     bql_lock();
+
+    /* 
+     * Native ADSP D3 ROM sequence simulation. 
+     * If waiti is executed with all interrupts masked cleanly, the CPU cannot 
+     * natively wake via conventional methods. We treat this as an explicit payload
+     * indicating a simulated ROM reset cycle.
+     */
+    if (env->sregs[INTENABLE] == 0) {
+        qemu_log("waiti: all IRQs masked, executing ROM D3 wakeup\n");
+        uint32_t val = 0;
+        uint32_t imr_vec = 0;
+
+        /* Power up the first 4 HP-SRAM banks locally */
+        cpu_memory_rw_debug(cpu, 0x71d00 + 0, (uint8_t *)&val, 4, 1);
+        cpu_memory_rw_debug(cpu, 0x71d00 + 8, (uint8_t *)&val, 4, 1);
+        cpu_memory_rw_debug(cpu, 0x71d00 + 16, (uint8_t *)&val, 4, 1);
+        cpu_memory_rw_debug(cpu, 0x71d00 + 24, (uint8_t *)&val, 4, 1);
+
+        /* Fetch the dynamic imr_restore_vector from IMR layout and jump to it */
+        cpu_memory_rw_debug(cpu, 0xA1000008, (uint8_t *)&imr_vec, 4, 0);
+        env->pc = imr_vec;
+
+        bql_unlock();
+        cpu_loop_exit(cpu);
+        return;
+    }
+
     check_interrupts(env);
     bql_unlock();
 
@@ -118,10 +174,57 @@ void HELPER(waiti)(CPUXtensaState *env, uint32_t pc, uint32_t intlevel)
     HELPER(exception)(env, EXCP_HLT);
 }
 
+static uint32_t last_ring_by_cpu[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+extern void __attribute__((weak)) ace_log_prefix(void);
+
+static void print_ring_change_if_any(CPUXtensaState *env) {
+    CPUState *cpu = env_cpu(env);
+    int idx = cpu->cpu_index;
+    if (idx >= 0 && idx < 8) {
+        uint32_t current_ring = (env->sregs[PS] & PS_EXCM) ? 0 : ((env->sregs[PS] & PS_RING) >> PS_RING_SHIFT);
+        uint32_t current_um = (env->sregs[PS] & PS_EXCM) ? 0 : ((env->sregs[PS] & PS_UM) ? 1 : 0);
+        uint32_t current_state = (current_ring << 1) | current_um;
+
+        if (current_state != last_ring_by_cpu[idx]) {
+            if (qemu_loglevel_mask(CPU_LOG_INT)) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                HELPER(update_ccount)(env);
+                
+                uint32_t last_ring = last_ring_by_cpu[idx] >> 1;
+                uint32_t last_um = last_ring_by_cpu[idx] & 1;
+                
+                qemu_log("CPU%d: CONTEXT SWITCH: Ring %d (UM %d) -> Ring %d (UM %d) (PC = 0x%08x, PS = 0x%08x, CCOUNT = 0x%08x)\n",
+                         idx, last_ring, last_um, current_ring, current_um, env->pc, env->sregs[PS], env->sregs[CCOUNT]);
+            }
+            last_ring_by_cpu[idx] = current_state;
+        }
+    }
+}
+
+void HELPER(check_ring_switch)(CPUXtensaState *env) {
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_INT))) {
+        print_ring_change_if_any(env);
+    }
+}
+
+void HELPER(check_wsr_eps)(CPUXtensaState *env, uint32_t eps_val) {
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_INT))) {
+        /* Check if the new EPS value sets the User Mode (UM) bit while we are currently NOT in User Mode */
+        if ((eps_val & PS_UM) && !(env->sregs[PS] & PS_UM)) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            HELPER(update_ccount)(env);
+            qemu_log("CPU%d: wsr.ZSR_EPS trap: Setting up Userspace transition (Target PS = 0x%08x, CCOUNT = 0x%08x)\n",
+                     env_cpu(env)->cpu_index, eps_val, env->sregs[CCOUNT]);
+        }
+    }
+}
+
 void HELPER(check_interrupts)(CPUXtensaState *env)
 {
     bql_lock();
     check_interrupts(env);
+    print_ring_change_if_any(env);
     bql_unlock();
 }
 
@@ -146,7 +249,10 @@ static uint32_t relocated_vector(CPUXtensaState *env, uint32_t vector)
 {
     if (xtensa_option_enabled(env->config,
                               XTENSA_OPTION_RELOCATABLE_VECTOR)) {
-        return vector - env->config->vecbase + env->sregs[VECBASE];
+        /* VECBASE lowest 4 bits are ignored when calculating exception vectors.
+         * This ensures proper alignment of the vector base address.
+         */
+        return vector - env->config->vecbase + (env->sregs[VECBASE] & ~0xF);
     } else {
         return vector;
     }
@@ -210,16 +316,18 @@ void xtensa_cpu_do_interrupt(CPUState *cs)
     if (cs->exception_index == EXC_IRQ) {
         uint64_t last_pc = env->pc;
 
-        qemu_log_mask(CPU_LOG_INT,
-                      "%s(EXC_IRQ) level = %d, cintlevel = %d, "
-                      "pc = %08x, a0 = %08x, ps = %08x, "
-                      "intset = %08x, intenable = %08x, "
-                      "ccount = %08x\n",
-                      __func__, env->pending_irq_level,
-                      xtensa_get_cintlevel(env),
-                      env->pc, env->regs[0], env->sregs[PS],
-                      env->sregs[INTSET], env->sregs[INTENABLE],
-                      env->sregs[CCOUNT]);
+        if (qemu_loglevel_mask(CPU_LOG_INT)) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log("%s(EXC_IRQ) level = %d, cintlevel = %d, "
+                     "pc = %08x, a0 = %08x, ps = %08x, "
+                     "intset = %08x, intenable = %08x, "
+                     "ccount = %08x\n",
+                     __func__, env->pending_irq_level,
+                     xtensa_get_cintlevel(env),
+                     env->pc, env->regs[0], env->sregs[PS],
+                     env->sregs[INTSET], env->sregs[INTENABLE],
+                     env->sregs[CCOUNT]);
+        }
         handle_interrupt(env);
         qemu_plugin_vcpu_interrupt_cb(cs, last_pc);
     }
@@ -235,11 +343,16 @@ void xtensa_cpu_do_interrupt(CPUState *cs)
     case EXC_USER:
     case EXC_DOUBLE:
     case EXC_DEBUG:
-        qemu_log_mask(CPU_LOG_INT, "%s(%d) "
-                      "pc = %08x, a0 = %08x, ps = %08x, ccount = %08x\n",
+        if (qemu_loglevel_mask(CPU_LOG_INT)) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log("%s(%d) "
+                      "pc = %08x, a0 = %08x, ps = %08x, ccount = %08x, "
+                      "EXCCAUSE = %d, EXCVADDR = %08x\n",
                       __func__, cs->exception_index,
                       env->pc, env->regs[0], env->sregs[PS],
-                      env->sregs[CCOUNT]);
+                      env->sregs[CCOUNT], env->sregs[EXCCAUSE],
+                      env->sregs[EXCVADDR]);
+        }
         if (env->config->exception_vector[cs->exception_index]) {
             uint32_t vector;
             uint64_t last_pc = env->pc;
@@ -248,9 +361,11 @@ void xtensa_cpu_do_interrupt(CPUState *cs)
             env->pc = relocated_vector(env, vector);
             qemu_plugin_vcpu_exception_cb(cs, last_pc);
         } else {
-            qemu_log_mask(CPU_LOG_INT,
-                          "%s(pc = %08x) bad exception_index: %d\n",
-                          __func__, env->pc, cs->exception_index);
+            if (qemu_loglevel_mask(CPU_LOG_INT)) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log("%s(pc = %08x) bad exception_index: %d\n",
+                         __func__, env->pc, cs->exception_index);
+            }
         }
         break;
 
@@ -258,11 +373,33 @@ void xtensa_cpu_do_interrupt(CPUState *cs)
         break;
 
     default:
-        qemu_log("%s(pc = %08x) unknown exception_index: %d\n",
-                 __func__, env->pc, cs->exception_index);
+        if (qemu_loglevel_mask(CPU_LOG_INT)) {
+            if (ace_log_prefix) { ace_log_prefix(); }
+            qemu_log("%s(pc = %08x) unknown exception_index: %d\n",
+                     __func__, env->pc, cs->exception_index);
+        }
         break;
     }
     check_interrupts(env);
+    print_ring_change_if_any(env);
+    
+    /* Emit a synthetic 'FUNC ENTRY' event if CPU_LOG_FUNC is active to balance 
+     * the 'FUNC RET' emitted by RFI/RFE. This captures the hardware-imposed 
+     * leap to the exception vector address.
+     * We explicitly ignore Window Overflow and Underflow exceptions, as they 
+     * rotate the registers dynamically causing SP to temporarily evaluate to 0, 
+     * and they return via RFWO/RFWU which do not emit FUNC RET.
+     */
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_FUNC))) {
+        if (cs->exception_index != EXC_WINDOW_OVERFLOW4 &&
+            cs->exception_index != EXC_WINDOW_UNDERFLOW4 &&
+            cs->exception_index != EXC_WINDOW_OVERFLOW8 &&
+            cs->exception_index != EXC_WINDOW_UNDERFLOW8 &&
+            cs->exception_index != EXC_WINDOW_OVERFLOW12 &&
+            cs->exception_index != EXC_WINDOW_UNDERFLOW12) {
+            helper_log_entry(env, env->pc);
+        }
+    }
 }
 
 bool xtensa_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
