@@ -82,6 +82,7 @@ enum {
     XTENSA_OPTION_XLMI,
     XTENSA_OPTION_HW_ALIGNMENT,
     XTENSA_OPTION_MEMORY_ECC_PARITY,
+    XTENSA_OPTION_PREFETCH,
 
     /* Memory protection and translation */
     XTENSA_OPTION_REGION_PROTECTION,
@@ -425,9 +426,19 @@ typedef struct XtensaOpcodeTranslators {
 extern const XtensaOpcodeTranslators xtensa_core_opcodes;
 extern const XtensaOpcodeTranslators xtensa_fpu2000_opcodes;
 extern const XtensaOpcodeTranslators xtensa_fpu_opcodes;
+extern const XtensaOpcodeTranslators xtensa_hifi_opcodes;
+
+typedef struct XtensaIrqSource {
+    int irq;
+    const char *name;
+    const char *type;
+    int level;
+} XtensaIrqSource;
 
 typedef struct XtensaConfig {
     const char *name;
+    const XtensaIrqSource *irq_info;
+    unsigned num_irq_info;
     uint64_t options;
     XtensaGdbRegmap gdb_regmap;
     unsigned nareg;
@@ -456,10 +467,16 @@ typedef struct XtensaConfig {
     unsigned nibreak;
     unsigned ndbreak;
 
+    unsigned icache_size;
     unsigned icache_ways;
+    unsigned icache_line_bytes;
+    unsigned dcache_size;
     unsigned dcache_ways;
     unsigned dcache_line_bytes;
+    bool dcache_is_writeback;
     uint32_t memctl_mask;
+    uint32_t cache_region_base;
+    uint32_t cache_region_size;
 
     XtensaMemory instrom;
     XtensaMemory instram;
@@ -491,6 +508,28 @@ typedef struct XtensaConfig {
     bool use_first_nan;
 } XtensaConfig;
 
+typedef struct XtensaCacheLine {
+    uint32_t tag;
+    uint64_t last_use;
+    bool valid;
+    bool dirty;
+    bool locked;    /* Cache line locking (DCL/ICL) */
+} XtensaCacheLine;
+
+typedef struct XtensaCache {
+    XtensaCacheLine *lines;
+    uint32_t line_size;
+    uint32_t num_sets;
+    uint32_t ways;
+    uint64_t accesses;
+    uint64_t hits;
+    uint64_t misses;
+    uint64_t evictions;
+    uint64_t writebacks;
+    uint64_t prefetches;
+    uint64_t generation;
+} XtensaCache;
+
 typedef struct XtensaConfigList {
     XtensaConfig *config;
     struct XtensaConfigList *next;
@@ -508,6 +547,11 @@ enum {
 };
 #endif
 
+/* HiFi Audio Engine register file sizes */
+#define XCHAL_NUM_AE_DR     16  /* AE data registers (64-bit) */
+#define XCHAL_NUM_AE_VALIGN  4  /* AE alignment registers (64-bit) */
+#define XCHAL_NUM_AE_EP      4  /* AE extension registers (8-bit modeled in i32) */
+
 struct CPUArchState {
     const XtensaConfig *config;
     uint32_t regs[16];
@@ -520,9 +564,43 @@ struct CPUArchState {
         float64 f64;
     } fregs[16];
     float_status fp_status;
+    uint64_t ae_dr[XCHAL_NUM_AE_DR];       /* HiFi AE data registers */
+    uint64_t ae_valign[XCHAL_NUM_AE_VALIGN]; /* HiFi AE alignment regs */
+    uint32_t ae_ep[XCHAL_NUM_AE_EP];       /* HiFi AE extension regs */
+    uint32_t ae_overflow;                   /* HiFi AE overflow state */
+    uint32_t ae_sar;                        /* HiFi AE SAR state */
+    uint32_t ae_cbegin0;                    /* HiFi AE circular begin 0 */
+    uint32_t ae_cend0;                      /* HiFi AE circular end 0 */
+    uint32_t ae_cbegin1;                    /* HiFi AE circular begin 1 */
+    uint32_t ae_cend1;                      /* HiFi AE circular end 1 */
+    uint32_t ae_cwrap;                      /* HiFi AE circular wrap */
+    uint32_t ae_bithead;                    /* HiFi AE bitstream head */
+    uint32_t ae_bitptr;                     /* HiFi AE bit pointer */
+    uint32_t ae_bitsused;                   /* HiFi AE bits used */
+    uint32_t ae_tablesize;                  /* HiFi AE table size */
+    uint32_t ae_first_ts;                   /* HiFi AE first timestamp */
+    uint32_t ae_nextoffset;                 /* HiFi AE next offset */
+    uint32_t ae_searchdone;                 /* HiFi AE search done state */
     uint32_t windowbase_next;
     uint32_t exclusive_addr;
     uint32_t exclusive_val;
+    XtensaCache icache;
+    XtensaCache dcache;
+
+    /*
+     * HP-SRAM non-coherent model.
+     * Set by the machine after init. NULL when not used.
+     *
+     * hpsram_local:    this core's shadow RAM (what 0xa0020000 reads/writes see)
+     * hpsram_coherent: shared coherent backing (visible at 0x40020000)
+     *
+     * Cache writeback propagates dirty lines from local → coherent.
+     * Cache miss fills the local shadow line from coherent.
+     */
+    uint8_t  *hpsram_local;
+    uint8_t  *hpsram_coherent;
+    uint32_t  hpsram_base;
+    uint32_t  hpsram_size;
 
 #ifndef CONFIG_USER_ONLY
     xtensa_tlb_entry itlb[7][MAX_TLB_WAY_SIZE];
@@ -549,6 +627,9 @@ struct CPUArchState {
     struct CPUWatchpoint *cpu_watchpoint[MAX_NDBREAK];
     /* Breakpoints for IBREAK registers */
     struct CPUBreakpoint *cpu_breakpoint[MAX_NIBREAK];
+
+    /* IRQ count tracking */
+    uint64_t irq_counts[MAX_NINTERRUPT];
 };
 
 /**
@@ -562,6 +643,7 @@ struct ArchCPU {
 
     CPUXtensaState env;
     Clock *clock;
+    bool continue_on_exception;
 };
 
 /**
@@ -625,6 +707,18 @@ void **xtensa_get_regfile_by_name(const char *name, int entries, int bits);
 void xtensa_breakpoint_handler(CPUState *cs);
 void xtensa_register_core(XtensaConfigList *node);
 void xtensa_sim_open_console(Chardev *chr);
+void xtensa_cache_init(CPUXtensaState *env);
+void xtensa_cache_reset(CPUXtensaState *env);
+void xtensa_cache_fini(CPUXtensaState *env);
+void xtensa_cache_access(CPUXtensaState *env, uint32_t vaddr,
+                         bool is_data, bool is_write);
+void xtensa_cache_invalidate(CPUXtensaState *env, uint32_t vaddr,
+                             bool is_data);
+void xtensa_cache_invalidate_all(CPUXtensaState *env, bool is_data);
+void xtensa_cache_lock_line(CPUXtensaState *env, uint32_t vaddr,
+                            bool is_data);
+void xtensa_cache_prefetch(CPUXtensaState *env, uint32_t vaddr,
+                           bool is_data);
 void check_interrupts(CPUXtensaState *s);
 void xtensa_irq_init(CPUXtensaState *env);
 qemu_irq *xtensa_get_extints(CPUXtensaState *env);

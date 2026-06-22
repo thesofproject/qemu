@@ -36,9 +36,423 @@
 #include "migration/vmstate.h"
 #include "hw/core/qdev-clock.h"
 #include "accel/tcg/cpu-ops.h"
+#include "qemu/log.h"
 #ifndef CONFIG_USER_ONLY
 #include "system/memory.h"
 #endif
+#include "hw/core/qdev-properties.h"
+
+static void xtensa_cache_init_one(XtensaCache *cache, uint32_t size,
+                                  uint32_t line_size, uint32_t ways)
+{
+    uint32_t num_sets;
+
+    memset(cache, 0, sizeof(*cache));
+
+    if (!size || !line_size || !ways) {
+        return;
+    }
+
+    num_sets = size / (line_size * ways);
+    if (!num_sets) {
+        return;
+    }
+
+    cache->line_size = line_size;
+    cache->num_sets = num_sets;
+    cache->ways = ways;
+    cache->lines = g_new0(XtensaCacheLine, num_sets * ways);
+}
+
+static void xtensa_cache_reset_one(XtensaCache *cache)
+{
+    if (!cache->lines) {
+        return;
+    }
+
+    memset(cache->lines, 0,
+           sizeof(*cache->lines) * cache->num_sets * cache->ways);
+    cache->accesses = 0;
+    cache->hits = 0;
+    cache->misses = 0;
+    cache->evictions = 0;
+    cache->writebacks = 0;
+    cache->prefetches = 0;
+    cache->generation = 0;
+}
+
+static void xtensa_cache_fini_one(XtensaCache *cache)
+{
+    g_free(cache->lines);
+    memset(cache, 0, sizeof(*cache));
+}
+
+static bool xtensa_cache_in_range(const CPUXtensaState *env, uint32_t vaddr)
+{
+    uint64_t base = env->config->cache_region_base;
+    uint64_t size = env->config->cache_region_size;
+
+    return size && vaddr >= base && (uint64_t)vaddr < base + size;
+}
+
+static unsigned xtensa_cache_active_ways(const CPUXtensaState *env,
+                                         bool is_data)
+{
+    unsigned configured = is_data ? env->config->dcache_ways
+                                  : env->config->icache_ways;
+    unsigned active;
+
+    if (!configured) {
+        return 0;
+    }
+
+    if (is_data) {
+        active = extract32(env->sregs[MEMCTL], MEMCTL_DUSEWAYS_SHIFT,
+                           MEMCTL_DUSEWAYS_LEN);
+    } else {
+        active = extract32(env->sregs[MEMCTL], MEMCTL_IUSEWAYS_SHIFT,
+                           MEMCTL_IUSEWAYS_LEN);
+    }
+
+    if (!active || active > configured) {
+        active = configured;
+    }
+
+    return active;
+}
+
+static unsigned xtensa_cache_alloc_ways(const CPUXtensaState *env)
+{
+    unsigned alloc = extract32(env->sregs[MEMCTL], MEMCTL_DALLOCWAYS_SHIFT,
+                               MEMCTL_DALLOCWAYS_LEN);
+    unsigned active = xtensa_cache_active_ways(env, true);
+
+    if (!alloc || alloc > active) {
+        alloc = active;
+    }
+
+    return alloc;
+}
+
+void xtensa_cache_init(CPUXtensaState *env)
+{
+    xtensa_cache_init_one(&env->icache, env->config->icache_size,
+                          env->config->icache_line_bytes,
+                          env->config->icache_ways);
+    xtensa_cache_init_one(&env->dcache, env->config->dcache_size,
+                          env->config->dcache_line_bytes,
+                          env->config->dcache_ways);
+}
+
+void xtensa_cache_reset(CPUXtensaState *env)
+{
+    xtensa_cache_reset_one(&env->icache);
+    xtensa_cache_reset_one(&env->dcache);
+}
+
+void xtensa_cache_fini(CPUXtensaState *env)
+{
+    xtensa_cache_fini_one(&env->icache);
+    xtensa_cache_fini_one(&env->dcache);
+}
+
+void xtensa_cache_access(CPUXtensaState *env, uint32_t vaddr,
+                         bool is_data, bool is_write)
+{
+    XtensaCache *cache = is_data ? &env->dcache : &env->icache;
+    unsigned active_ways;
+    unsigned alloc_ways;
+    uint32_t line_addr;
+    uint32_t set;
+    uint32_t tag;
+    XtensaCacheLine *set_lines;
+    XtensaCacheLine *victim;
+    uint64_t oldest_use;
+    unsigned i;
+
+    if (!cache->lines || !xtensa_cache_in_range(env, vaddr)) {
+        return;
+    }
+
+    active_ways = xtensa_cache_active_ways(env, is_data);
+    if (!active_ways) {
+        return;
+    }
+
+    cache->accesses++;
+    cache->generation++;
+
+    line_addr = vaddr / cache->line_size;
+    set = line_addr % cache->num_sets;
+    tag = line_addr / cache->num_sets;
+    set_lines = &cache->lines[set * cache->ways];
+
+    for (i = 0; i < active_ways; i++) {
+        XtensaCacheLine *line = &set_lines[i];
+
+        if (line->valid && line->tag == tag) {
+            cache->hits++;
+            line->last_use = cache->generation;
+            if (is_data && is_write && env->config->dcache_is_writeback) {
+                line->dirty = true;
+            }
+            qemu_log_mask(CPU_LOG_CACHE,
+                          "%scache hit:  vaddr=0x%08x set=%u way=%u tag=0x%x%s\n",
+                          is_data ? "D" : "I", vaddr, set, i, tag,
+                          (is_data && is_write) ? " [dirty]" : "");
+            return;
+        }
+    }
+
+    cache->misses++;
+    qemu_log_mask(CPU_LOG_CACHE,
+                  "%scache miss: vaddr=0x%08x set=%u tag=0x%x\n",
+                  is_data ? "D" : "I", vaddr, set, tag);
+
+    /*
+     * HP-SRAM non-coherent model: on a cache miss, fill this core's local
+     * shadow from the coherent store so we see the authoritative contents
+     * (written by other cores via the coherent alias or after their own
+     * writebacks).
+     */
+    if (is_data && env->hpsram_local && env->hpsram_coherent) {
+        uint32_t line_vaddr = (vaddr / cache->line_size) * cache->line_size;
+        if (line_vaddr >= env->hpsram_base &&
+            (uint64_t)line_vaddr + cache->line_size <=
+                (uint64_t)env->hpsram_base + env->hpsram_size) {
+            uint32_t offset = line_vaddr - env->hpsram_base;
+            memcpy(env->hpsram_local  + offset,
+                   env->hpsram_coherent + offset,
+                   cache->line_size);
+            qemu_log_mask(CPU_LOG_CACHE,
+                          "Dcache fill from coherent: offset=0x%x line_size=%u\n",
+                          offset, cache->line_size);
+        }
+    }
+
+    alloc_ways = is_data ? xtensa_cache_alloc_ways(env) : active_ways;
+    if (!alloc_ways) {
+        return;
+    }
+
+    victim = &set_lines[0];
+    oldest_use = UINT64_MAX;
+    for (i = 0; i < alloc_ways; i++) {
+        XtensaCacheLine *line = &set_lines[i];
+
+        if (!line->valid) {
+            victim = line;
+            oldest_use = 0;
+            break;
+        }
+        /* Skip locked lines in eviction search; find oldest unlocked victim. */
+        if (!line->locked && line->last_use < oldest_use) {
+            oldest_use = line->last_use;
+            victim = line;
+        }
+    }
+
+    /* If all candidates are locked, cannot allocate a line. */
+    if (victim->valid && victim->locked) {
+        qemu_log_mask(CPU_LOG_CACHE,
+                      "%scache miss cannot allocate: all ways locked for set=%u\n",
+                      is_data ? "D" : "I", set);
+        return;
+    }
+
+    if (victim->valid) {
+        cache->evictions++;
+        if (is_data && victim->dirty && env->config->dcache_is_writeback) {
+            cache->writebacks++;
+            /*
+             * HP-SRAM non-coherent model: flush the evicted dirty line from
+             * this core's shadow to the shared coherent store so other cores
+             * can observe it via 0x40020000.
+             */
+            if (env->hpsram_local && env->hpsram_coherent) {
+                uint32_t evict_vaddr =
+                    (victim->tag * cache->num_sets + set) * cache->line_size;
+                if (evict_vaddr >= env->hpsram_base &&
+                    (uint64_t)evict_vaddr + cache->line_size <=
+                        (uint64_t)env->hpsram_base + env->hpsram_size) {
+                    uint32_t offset = evict_vaddr - env->hpsram_base;
+                    memcpy(env->hpsram_coherent + offset,
+                           env->hpsram_local    + offset,
+                           cache->line_size);
+                    qemu_log_mask(CPU_LOG_CACHE,
+                                  "Dcache evict+wb coherent: offset=0x%x\n",
+                                  offset);
+                }
+            }
+            qemu_log_mask(CPU_LOG_CACHE,
+                          "Dcache evict+wb: set=%u evicted_tag=0x%x for vaddr=0x%08x\n",
+                          set, victim->tag, vaddr);
+        } else {
+            qemu_log_mask(CPU_LOG_CACHE,
+                          "%scache evict: set=%u evicted_tag=0x%x for vaddr=0x%08x\n",
+                          is_data ? "D" : "I", set, victim->tag, vaddr);
+        }
+    }
+
+    victim->valid = true;
+    victim->tag = tag;
+    victim->last_use = cache->generation;
+    victim->dirty = is_data && is_write && env->config->dcache_is_writeback;
+    /* Inherit lock state if victim was locked (should not happen, but preserve it). */
+    /* victim->locked is already set. */
+}
+
+void xtensa_cache_prefetch(CPUXtensaState *env, uint32_t vaddr,
+                           bool is_data)
+{
+    XtensaCache *cache = is_data ? &env->dcache : &env->icache;
+
+    if (!cache->lines || !xtensa_cache_in_range(env, vaddr)) {
+        return;
+    }
+
+    cache->prefetches++;
+    xtensa_cache_access(env, vaddr, is_data, false);
+}
+
+void xtensa_cache_lock_line(CPUXtensaState *env, uint32_t vaddr,
+                            bool is_data)
+{
+    XtensaCache *cache = is_data ? &env->dcache : &env->icache;
+    unsigned active_ways;
+    uint32_t line_addr;
+    uint32_t set;
+    uint32_t tag;
+    XtensaCacheLine *set_lines;
+    unsigned i;
+
+    if (!cache->lines || !xtensa_cache_in_range(env, vaddr)) {
+        return;
+    }
+
+    active_ways = xtensa_cache_active_ways(env, is_data);
+    if (!active_ways) {
+        return;
+    }
+
+    line_addr = vaddr / cache->line_size;
+    set = line_addr % cache->num_sets;
+    tag = line_addr / cache->num_sets;
+    set_lines = &cache->lines[set * cache->ways];
+
+    /* Look for existing line and lock it. */
+    for (i = 0; i < active_ways; i++) {
+        XtensaCacheLine *line = &set_lines[i];
+
+        if (line->valid && line->tag == tag) {
+            line->locked = true;
+            qemu_log_mask(CPU_LOG_CACHE,
+                          "%scache lock:  vaddr=0x%08x set=%u way=%u tag=0x%x\n",
+                          is_data ? "D" : "I", vaddr, set, i, tag);
+            return;
+        }
+    }
+
+    qemu_log_mask(CPU_LOG_CACHE,
+                  "%scache lock fail: vaddr=0x%08x not in cache (set=%u tag=0x%x)\n",
+                  is_data ? "D" : "I", vaddr, set, tag);
+}
+
+void xtensa_cache_invalidate(CPUXtensaState *env, uint32_t vaddr,
+                             bool is_data)
+{
+    XtensaCache *cache = is_data ? &env->dcache : &env->icache;
+    unsigned active_ways;
+    uint32_t line_addr;
+    uint32_t set;
+    uint32_t tag;
+    XtensaCacheLine *set_lines;
+    unsigned i;
+
+    if (!cache->lines || !xtensa_cache_in_range(env, vaddr)) {
+        return;
+    }
+
+    active_ways = xtensa_cache_active_ways(env, is_data);
+    if (!active_ways) {
+        return;
+    }
+
+    line_addr = vaddr / cache->line_size;
+    set = line_addr % cache->num_sets;
+    tag = line_addr / cache->num_sets;
+    set_lines = &cache->lines[set * cache->ways];
+
+    for (i = 0; i < active_ways; i++) {
+        XtensaCacheLine *line = &set_lines[i];
+
+        if (line->valid && line->tag == tag) {
+            if (is_data && line->dirty && env->config->dcache_is_writeback) {
+                cache->writebacks++;
+                /*
+                 * HP-SRAM non-coherent model: flush dirty line to coherent
+                 * store on explicit cache invalidation/writeback.
+                 */
+                if (env->hpsram_local && env->hpsram_coherent) {
+                    uint32_t line_vaddr =
+                        (tag * cache->num_sets + set) * cache->line_size;
+                    if (line_vaddr >= env->hpsram_base &&
+                        (uint64_t)line_vaddr + cache->line_size <=
+                            (uint64_t)env->hpsram_base + env->hpsram_size) {
+                        uint32_t offset = line_vaddr - env->hpsram_base;
+                        memcpy(env->hpsram_coherent + offset,
+                               env->hpsram_local    + offset,
+                               cache->line_size);
+                        qemu_log_mask(CPU_LOG_CACHE,
+                                      "Dcache inv+wb coherent: offset=0x%x\n",
+                                      offset);
+                    }
+                }
+                qemu_log_mask(CPU_LOG_CACHE,
+                              "Dcache inv+wb: vaddr=0x%08x set=%u tag=0x%x\n",
+                              vaddr, set, tag);
+            } else {
+                qemu_log_mask(CPU_LOG_CACHE,
+                              "%scache inv: vaddr=0x%08x set=%u tag=0x%x\n",
+                              is_data ? "D" : "I", vaddr, set, tag);
+            }
+            memset(line, 0, sizeof(*line));
+            return;
+        }
+    }
+}
+
+void xtensa_cache_invalidate_all(CPUXtensaState *env, bool is_data)
+{
+    XtensaCache *cache = is_data ? &env->dcache : &env->icache;
+    uint32_t total_lines;
+    uint32_t i;
+
+    if (!cache->lines) {
+        return;
+    }
+
+    total_lines = cache->num_sets * cache->ways;
+    if (is_data && env->config->dcache_is_writeback) {
+        for (i = 0; i < total_lines; i++) {
+            if (cache->lines[i].valid && cache->lines[i].dirty) {
+                cache->writebacks++;
+            }
+        }
+    }
+
+    qemu_log_mask(CPU_LOG_CACHE,
+                  "%scache inv_all: %u lines flushed\n",
+                  is_data ? "D" : "I", total_lines);
+    memset(cache->lines, 0, sizeof(*cache->lines) * total_lines);
+}
+
+static void xtensa_cpu_finalize(Object *obj)
+{
+    XtensaCPU *cpu = XTENSA_CPU(obj);
+
+    xtensa_cache_fini(&cpu->env);
+}
 
 
 static void xtensa_cpu_set_pc(CPUState *cs, vaddr value)
@@ -194,6 +608,7 @@ static void xtensa_cpu_reset_hold(Object *obj, ResetType type)
     env->sregs[CPENABLE] = 0xff;
 #endif
     env->sregs[VECBASE] = env->config->vecbase;
+    qemu_log("CPU reset: Set VECBASE to 0x%x from config\n", env->config->vecbase);
     env->sregs[IBREAKENABLE] = 0;
     env->sregs[MEMCTL] = MEMCTL_IL0EN & env->config->memctl_mask;
     env->sregs[ATOMCTL] = xtensa_option_enabled(env->config,
@@ -201,6 +616,7 @@ static void xtensa_cpu_reset_hold(Object *obj, ResetType type)
     env->sregs[CONFIGID0] = env->config->configid[0];
     env->sregs[CONFIGID1] = env->config->configid[1];
     env->exclusive_addr = -1;
+    xtensa_cache_reset(env);
 
 #ifndef CONFIG_USER_ONLY
     reset_mmu(env);
@@ -280,6 +696,8 @@ static void xtensa_cpu_initfn(Object *obj)
     cpu->clock = qdev_init_clock_in(DEVICE(obj), "clk-in", NULL, cpu, 0);
     clock_set_hz(cpu->clock, env->config->clock_freq_khz * 1000);
 #endif
+
+    xtensa_cache_init(env);
 }
 
 XtensaCPU *xtensa_cpu_create_with_clock(const char *cpu_type, Clock *cpu_refclk)
@@ -332,6 +750,10 @@ static const TCGCPUOps xtensa_tcg_ops = {
 #endif /* !CONFIG_USER_ONLY */
 };
 
+static const Property xtensa_cpu_properties[] = {
+    DEFINE_PROP_BOOL("continue-on-exception", XtensaCPU, continue_on_exception, false),
+};
+
 static void xtensa_cpu_class_init(ObjectClass *oc, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(oc);
@@ -344,6 +766,8 @@ static void xtensa_cpu_class_init(ObjectClass *oc, const void *data)
 
     resettable_class_set_parent_phases(rc, NULL, xtensa_cpu_reset_hold, NULL,
                                        &xcc->parent_phases);
+
+    device_class_set_props(dc, xtensa_cpu_properties);
 
     cc->class_by_name = xtensa_cpu_class_by_name;
     cc->dump_state = xtensa_cpu_dump_state;
@@ -366,6 +790,7 @@ static const TypeInfo xtensa_cpu_type_info = {
     .instance_size = sizeof(XtensaCPU),
     .instance_align = __alignof(XtensaCPU),
     .instance_init = xtensa_cpu_initfn,
+    .instance_finalize = xtensa_cpu_finalize,
     .abstract = true,
     .class_size = sizeof(XtensaCPUClass),
     .class_init = xtensa_cpu_class_init,
