@@ -860,6 +860,45 @@ SRST
 ERST
 
     {
+        .name       = "ace-ipc-tx",
+        .args_type  = "primary:i,extension:i?,payload_bytes:s?,sram_addr:l?",
+        .params     = "primary [extension] [payload_bytes] [sram_addr]",
+        .help       = "Inject an architectural IPC transmission onto the DSP mailbox. payload_bytes should be colon-separated hex (e.g. 1a:2b:3c). sram_addr optionally redirects the payload to an absolute physical SRAM mailbox address.",
+        .cmd        = hmp_ace_ipc_tx,
+    },
+
+SRST
+``ace-ipc-tx`` *primary* [*extension*] [*payload_bytes*] [*sram_addr*]
+  Send an ACE IPC command from the host to the DSP. Hits the IPC_DIPCTDR doorbell. Optionally packs extra data words directly into the contiguous XTDDY mailbox window from a string of bytes or a specified SRAM L2 physical window address.
+ERST
+
+    {
+        .name       = "ace-ipc-rx",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Read back ACE IPC doorbell state. Reports busy flag, tdr/tda (host->DSP request/reply) and idr/ida (DSP->host) register values.",
+        .cmd        = hmp_ace_ipc_rx,
+    },
+
+SRST
+``ace-ipc-rx``
+  Poll the IPC reply state. Returns ``busy=0`` when the DSP firmware has processed the last host->DSP message. ``tda`` carries the IPC4 reply status (bits[23:0]=0 means success).
+ERST
+
+    {
+        .name       = "ace-dma-in",
+        .args_type  = "stream:i,file:s",
+        .params     = "stream file",
+        .help       = "Bind an external file payload to the DSP HD/A DMA ingestion gateway",
+        .cmd        = adsp_monitor_ace_dma_in,
+    },
+
+SRST
+``ace-dma-in`` *stream* *file*
+  Bind the Host-to-DSP HDA DMA *stream* channel input context to locally buffer operations from *file*. Enables out-of-band firmware payloads.
+ERST
+
+    {
         .name       = "ringbuf_write",
         .args_type  = "device:s,data:s",
         .params     = "device data",

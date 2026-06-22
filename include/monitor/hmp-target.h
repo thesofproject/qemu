@@ -47,4 +47,21 @@ int target_get_monitor_def(CPUState *cs, const char *name, uint64_t *pval);
 CPUArchState *mon_get_cpu_env(Monitor *mon);
 CPUState *mon_get_cpu(Monitor *mon);
 
+void hmp_info_xtensa_cache(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_irq(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_manifest(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_core(Monitor *mon, const QDict *qdict);
+void hmp_info_adsp_mtrace(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_timer(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_sram(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_imr(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_tlb(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_ipc(Monitor *mon, const QDict *qdict);
+void hmp_ace_ipc_tx(Monitor *mon, const QDict *qdict);
+void hmp_ace_ipc_rx(Monitor *mon, const QDict *qdict);
+void adsp_monitor_ace_dma_in(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_dma(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_win(Monitor *mon, const QDict *qdict);
+void hmp_info_ace_window(Monitor *mon, const QDict *qdict);
+
 #endif /* MONITOR_HMP_TARGET_H */

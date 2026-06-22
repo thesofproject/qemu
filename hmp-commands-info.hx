@@ -211,6 +211,138 @@ SRST
     Show virtual to physical memory mappings.
 ERST
 
+#if defined(TARGET_XTENSA)
+        {
+                .name       = "xtensa-cache",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Xtensa cache configuration and statistics",
+                .cmd        = hmp_info_xtensa_cache,
+        },
+        {
+                .name       = "ace-irq",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show target irq triggering counts",
+                .cmd        = hmp_info_ace_irq,
+        },
+        {
+                .name       = "ace-core",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show ACE core states (power, PC, PS, interrupts)",
+                .cmd        = hmp_info_ace_core,
+        },
+#endif
+
+SRST
+  ``info xtensa-cache``
+    Show Xtensa cache configuration and hit/miss statistics.
+
+  ``info ace-irq``
+    Show Xtensa per-IRQ level triggering counts and statistics natively.
+
+  ``info ace-core``
+    Show ACE core states including power, PC, PS, and interrupts.
+ERST
+
+#if defined(TARGET_XTENSA)
+        {
+                .name       = "ace-timer",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP ACE timer status",
+                .cmd        = hmp_info_ace_timer,
+        },
+        {
+                .name       = "ace-sram",
+                .args_type  = "scan:-s",
+                .params     = "[-s]",
+                .help       = "show Intel ADSP ACE SRAM power management state (-s: also scan every page for usage)",
+                .cmd        = hmp_info_ace_sram,
+        },
+        {
+                .name       = "ace-imr",
+                .args_type  = "scan:-s",
+                .params     = "[-s]",
+                .help       = "show Intel ADSP ACE Host IMR configuration and usage",
+                .cmd        = hmp_info_ace_imr,
+        },
+        {
+                .name       = "ace-manifest",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP ACE loaded firmware manifest data (modules, flags, layout)",
+                .cmd        = hmp_info_ace_manifest,
+        },
+        {
+                .name       = "ace-tlb",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP ACE TLB mappings",
+                .cmd        = hmp_info_ace_tlb,
+        },
+        {
+                .name       = "ace-dma",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP ACE HDA DMA stream state and scatter-gather lists",
+                .cmd        = hmp_info_ace_dma,
+        },
+        {
+                .name       = "ace-win",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP ACE DMW window configuration",
+                .cmd        = hmp_info_ace_win,
+        },
+        {
+                .name       = "ace-window",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP ACE SRAM Host Window configuration",
+                .cmd        = hmp_info_ace_window,
+        },
+        {
+                .name       = "adsp-mtrace",
+                .args_type  = "",
+                .params     = "",
+                .help       = "show Intel ADSP mtrace drain thread status",
+                .cmd        = hmp_info_adsp_mtrace,
+        },
+#endif
+
+SRST
+  ``info ace-timer``
+    Show Intel ADSP ACE timer state: DSP wall clock, timer 0/1 comparators, enabled status, scaled ticks.
+
+  ``info ace-sram``
+    Show Intel ADSP ACE HP/LP SRAM bank layout and dynamic power states.
+    If the optional param ``-s`` is passed, it scans every 4KB page in each bank for usage activity (non-0xFFFFFFFF).
+
+  ``info ace-imr``
+    Show Intel ADSP ACE Host IMR configuration and Host-facing attributes.
+    If the optional param ``-s`` is passed, it evaluates raw physical IMR boundaries mapping onto the DSP node.
+
+  ``info ace-manifest``
+    Show Intel ADSP ACE firmware bootloader manifest structures (versions, entry points, layout, segments).
+
+  ``info ace-core``
+    Show Intel ADSP ACE TLB virtual to physical mappings.
+
+  ``info ace-dma``
+    Show Intel ADSP ACE HDA DMA stream state, tracking, and physical Buffer Descriptor Lists (BDL).
+
+    ``info ace-win``
+        Show Intel ADSP ACE DMW window configuration (base/control and curtain limit for each window).
+
+  ``info ace-window``
+    Show Intel ADSP ACE SRAM Host Window configurations (DTFCXD64 registers).
+
+  ``info adsp-mtrace``
+    Show Intel ADSP mtrace thread state: active slot, ring pointers, output file, and pending bytes.
+ERST
+
 #if defined(TARGET_I386) || defined(TARGET_RISCV)
     {
         .name       = "mem",
