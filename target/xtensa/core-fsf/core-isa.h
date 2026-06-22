@@ -68,7 +68,7 @@
 #define XCHAL_HAVE_VECTRA1              0       /* Vectra I  pkg */
 #define XCHAL_HAVE_VECTRALX             0       /* Vectra LX pkg */
 #define XCHAL_HAVE_HIFI2                0       /* HiFi2 Audio Engine pkg */
-
+#define XCHAL_HAVE_PREFETCH             0       /* PREFCTL register */
 
 /*----------------------------------------------------------------------
                                 MISC

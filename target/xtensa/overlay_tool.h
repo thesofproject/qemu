@@ -146,6 +146,7 @@
     XCHAL_OPTION(XCHAL_UNALIGNED_LOAD_HW, XTENSA_OPTION_HW_ALIGNMENT) | \
     XCHAL_OPTION(XCHAL_HAVE_MEM_ECC_PARITY, \
                  XTENSA_OPTION_MEMORY_ECC_PARITY) | \
+    XCHAL_OPTION(XCHAL_HAVE_PREFETCH, XTENSA_OPTION_PREFETCH) | \
     /* Memory protection and translation */ \
     XCHAL_OPTION(XCHAL_HAVE_MIMIC_CACHEATTR, \
             XTENSA_OPTION_REGION_PROTECTION) | \
@@ -468,9 +469,13 @@
     .ndbreak = XCHAL_NUM_DBREAK
 
 #define CACHE_SECTION \
+    .icache_size = XCHAL_ICACHE_SIZE, \
     .icache_ways = XCHAL_ICACHE_WAYS, \
+    .icache_line_bytes = XCHAL_ICACHE_LINESIZE, \
+    .dcache_size = XCHAL_DCACHE_SIZE, \
     .dcache_ways = XCHAL_DCACHE_WAYS, \
     .dcache_line_bytes = XCHAL_DCACHE_LINESIZE, \
+    .dcache_is_writeback = XCHAL_DCACHE_IS_WRITEBACK, \
     .memctl_mask = \
         (XCHAL_ICACHE_SIZE ? MEMCTL_IUSEWAYS_MASK : 0) | \
         (XCHAL_DCACHE_SIZE ? \
