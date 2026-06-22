@@ -1,0 +1,96 @@
+/* ACE low-address DSPMEM blocks
+ * IP Region: low DSPMEM sub-blocks (IDC/HFINTIP/SOCCI/PMCCU side windows).
+ *
+ * Copyright (C) 2026 Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "qemu/osdep.h"
+#include "qemu/log.h"
+#include "hw/audio/adsp-dev.h"
+#include "hw/adsp/ace.h"
+#include "ace-internal.h"
+
+/* Moved from ace.h */
+#define SHIM_DFIDCPP    0x2020  /* Discovery Feature ID - Device Configuration and Port Parameters */
+
+#define ACE_LOW_DFIDCPP_DEFAULT 0x03000000u
+
+static void ace_block_common_init(struct adsp_dev *adsp, MemoryRegion *parent,
+                                  struct adsp_io_info *info)
+{
+    hwaddr base = info->space->desc.base;
+    hwaddr size = info->space->desc.size;
+
+    if (base <= SHIM_DFIDCPP && SHIM_DFIDCPP < base + size) {
+        /* Seed the fixed descriptor pointer value expected by FW probing these low blocks. */
+        info->region[(SHIM_DFIDCPP - base) >> 2] = ACE_LOW_DFIDCPP_DEFAULT;
+    }
+
+    ace_log("%s: initialized at 0x%x size=0x%x\n",
+             info->name, info->space->desc.base, info->space->desc.size);
+}
+
+static uint64_t ace_block_common_read(void *opaque, hwaddr addr, unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    hwaddr abs_addr = info->space->desc.base + addr;
+
+    if (abs_addr == SHIM_DFIDCPP) {
+        /* DFIDCPP is a discoverability pointer; return architectural reset value on read. */
+        return 0x00000000;
+    }
+
+    return info->region[addr >> 2];
+}
+
+static void ace_block_common_write(void *opaque, hwaddr addr, uint64_t val,
+                                   unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    hwaddr abs_addr = info->space->desc.base + addr;
+
+    if (abs_addr == SHIM_DFIDCPP) {
+        /* DFIDCPP is fixed by hardware/strap and ignores software writes. */
+        return;
+    }
+
+    /* All other low-block registers behave as simple scratch/configuration storage. */
+    info->region[addr >> 2] = val;
+}
+
+#define DEFINE_ACE_BLOCK_IO(name)                                              \
+    void ace_##name##_block_init(struct adsp_dev *adsp, MemoryRegion *parent, \
+                                 struct adsp_io_info *info)                    \
+    {                                                                          \
+        ace_block_common_init(adsp, parent, info);                             \
+    }                                                                          \
+                                                                               \
+    const MemoryRegionOps ace_##name##_block_ops = {                          \
+        .read = ace_block_common_read,                                         \
+        .write = ace_block_common_write,                                       \
+        .endianness = DEVICE_NATIVE_ENDIAN,                                    \
+    }
+
+DEFINE_ACE_BLOCK_IO(idc_dsp);
+DEFINE_ACE_BLOCK_IO(hfintip);
+DEFINE_ACE_BLOCK_IO(socci);
+DEFINE_ACE_BLOCK_IO(hfpmccu);
+DEFINE_ACE_BLOCK_IO(hfpmcch);
+DEFINE_ACE_BLOCK_IO(secpol);
+DEFINE_ACE_BLOCK_IO(tsocfgu_aon);
+DEFINE_ACE_BLOCK_IO(dfcapsts);
+DEFINE_ACE_BLOCK_IO(adcip);
+DEFINE_ACE_BLOCK_IO(adcs);

@@ -1,0 +1,96 @@
+# byt.c hsw.c ace30.c
+adsp_dsp_mbox_read(uint32_t addr, uint32_t value) "mbox: R 0x%08x value 0x%8x"
+adsp_dsp_mbox_write(uint32_t addr, uint32_t value) "mbox: W 0x%08x value 0x%8x"
+adsp_dsp_shim_read(uint32_t addr, uint32_t value) "shim: R 0x%08x value 0x%8x"
+adsp_dsp_shim_write(uint32_t addr, uint32_t value) "shim: W 0x%08x value 0x%8x"
+adsp_dsp_shim_mask(const char *name, uint32_t masking, uint32_t mask, uint32_t active) "mask: %s masking 0x%08x mask 0x%8x active 0x%8x"
+adsp_dsp_shim_event(const char *event, uint32_t value) "%s: 0x%8x"
+adsp_dsp_host_event(const char *event) "host action %s"
+adsp_dsp_host_msg(const char *event, uint32_t msg) "host %s %d"
+adsp_dsp_host_irq(const char *name, uint32_t masking, uint32_t mask, uint32_t active, uint32_t cmd) "mask: %s masking 0x%08x mask 0x%8x active 0x%8x cmd 0x%8x"
+adsp_dsp_shim_irq(const char *event) "%s"
+adsp_dsp_shim_timer(const char *event, uint32_t value) "%s time 0x%8x"
+
+# ACE3.x Power Management
+adsp_dsp_pwrctl_write(uint32_t value, const char *domains) "PWRCTL: write 0x%08x [%s]"
+adsp_dsp_pwrctl_read(uint32_t value) "PWRCTL: read 0x%08x"
+adsp_dsp_pwrsts_read(uint32_t value, const char *domains) "PWRSTS: read 0x%08x [%s]"
+adsp_dsp_dsscs_write(uint32_t old_value, uint32_t new_value, const char *action) "DSSCS: 0x%08x -> 0x%08x (%s)"
+adsp_dsp_dsscs_read(uint32_t value, const char *status) "DSSCS: read 0x%08x (%s)"
+adsp_dsp_dspcctl_write(uint32_t core, uint32_t old_value, uint32_t new_value, const char *action) "DSPC%dCTL: 0x%08x -> 0x%08x (%s)"
+adsp_dsp_dspcctl_read(uint32_t core, uint32_t value, const char *status) "DSPC%dCTL: read 0x%08x (%s)"
+
+# ACE3.x DMA Operations
+adsp_dsp_hda_stream_ctl_write(uint32_t stream, uint32_t value, const char *action) "HDA Stream %d CTL: write 0x%08x (%s)"
+adsp_dsp_hda_stream_ctl_read(uint32_t stream, uint32_t value, const char *status) "HDA Stream %d CTL: read 0x%08x (%s)"
+adsp_dsp_hda_stream_sts_read(uint32_t stream, uint32_t value, const char *status) "HDA Stream %d STS: read 0x%08x (%s)"
+adsp_dsp_hda_stream_pos_read(uint32_t stream, uint32_t lpib, uint32_t bufsize) "HDA Stream %d: LPIB=0x%08x CBL=0x%08x"
+adsp_dsp_hda_bdl_write(uint32_t stream, uint64_t addr, uint32_t entries) "HDA Stream %d: BDL addr=0x%016llx entries=%d"
+adsp_dsp_gpdma_ch_enable(uint32_t ctrl, uint32_t ch, uint64_t src, uint64_t dst, uint32_t len) "GPDMA%d CH%d: ENABLE src=0x%llx dst=0x%llx len=%d"
+adsp_dsp_gpdma_ch_disable(uint32_t ctrl, uint32_t ch) "GPDMA%d CH%d: DISABLE"
+adsp_dsp_gpdma_ch_complete(uint32_t ctrl, uint32_t ch) "GPDMA%d CH%d: COMPLETE"
+adsp_dsp_gpdma_ch_error(uint32_t ctrl, uint32_t ch, const char *type) "GPDMA%d CH%d: ERROR %s"
+adsp_dsp_gpdma_ch_config(uint32_t ctrl, uint32_t ch, uint32_t priority, const char *hs) "GPDMA%d CH%d: priority=%d handshake=%s"
+
+# ACE3.x Inter-DSP Communication (IDC)
+adsp_dsp_idc_msg_send(uint32_t src_core, uint32_t dst_core, uint32_t msg, uint32_t data) "IDC: Core %d -> Core %d, msg=0x%08x data=0x%08x"
+adsp_dsp_idc_busy_set(uint32_t core, uint32_t value) "IDC: Core %d BUSY set, msg=0x%08x"
+adsp_dsp_idc_busy_clear(uint32_t core) "IDC: Core %d BUSY cleared (ACK)"
+adsp_dsp_idc_done_set(uint32_t core) "IDC: Core %d DONE set"
+adsp_dsp_idc_done_clear(uint32_t core) "IDC: Core %d DONE cleared"
+adsp_dsp_idc_ctl_write(uint32_t core, uint32_t value, const char *enables) "IDC: Core %d CTL write 0x%08x [%s]"
+adsp_dsp_idc_data_write(uint32_t core, uint32_t value) "IDC: Core %d data write 0x%08x"
+adsp_dsp_idc_data_read(uint32_t core, uint32_t value) "IDC: Core %d data read 0x%08x"
+
+# ACE3.x Wall Clock and Timers
+adsp_dsp_wallclock_read(uint64_t value, uint64_t ns) "DSP Wall Clock: read 0x%016llx (%lld ns)"
+adsp_dsp_wallclock_adjust(uint32_t delta, const char *dir) "DSP Wall Clock: adjust %d ticks (%s)"
+adsp_dsp_wallclock_sync(uint64_t dspwc, uint64_t art) "DSP Wall Clock: sync DSPWC=0x%llx ART=0x%llx"
+adsp_dsp_wallclock_ctl_write(uint32_t value, const char *clksel) "DSPWCCTL: write 0x%08x clock=%s"
+adsp_dsp_timer_arm(uint32_t timer_id, uint64_t compare, uint64_t delta_ns) "Timer %d: arm at 0x%llx (delta %lld ns)"
+adsp_dsp_timer_fire(uint32_t timer_id, uint64_t now) "Timer %d: FIRE at 0x%llx"
+adsp_dsp_timer_enable(uint32_t timer_id, uint64_t compare) "Timer %d: enable compare=0x%llx"
+adsp_dsp_timer_disable(uint32_t timer_id) "Timer %d: disable"
+adsp_dsp_timestamp_capture(uint64_t dspwc, uint64_t art, const char *source) "Time Stamp: DSPWC=0x%llx ART=0x%llx source=%s"
+adsp_dsp_rtcwc_read(uint64_t value) "RTC Wall Clock: read 0x%016llx"
+adsp_dsp_watchdog_write(uint32_t value, const char *action) "WDT: write 0x%08x (%s)"
+adsp_dsp_gpdma_ch_disable(uint32_t ctrl, uint32_t ch) "GPDMA%d CH%d: DISABLE"
+adsp_dsp_gpdma_ch_complete(uint32_t ctrl, uint32_t ch, uint32_t bytes) "GPDMA%d CH%d: COMPLETE %d bytes"
+adsp_dsp_gpdma_ch_error(uint32_t ctrl, uint32_t ch, const char *error) "GPDMA%d CH%d: ERROR %s"
+adsp_dsp_gpdma_config(uint32_t ctrl, uint32_t ch, const char *config) "GPDMA%d CH%d: CONFIG %s"
+
+# ACE3.x Clock Control and Status
+adsp_dsp_clkctl_write(uint32_t value, uint32_t ocs, uint32_t eocs, uint32_t tcplcg) "CLKCTL: write 0x%08x (OCS=%d, EOCS=%d, TCPLCG=0x%x)"
+adsp_dsp_clkctl_read(uint32_t value) "CLKCTL: read 0x%08x"
+adsp_dsp_clksts_read(uint32_t value, uint32_t ocs, uint32_t eocs) "CLKSTS: read 0x%08x (OCS=%d, EOCS=%d)"
+
+# ACE3.x Host IPC Interrupt Routing
+adsp_dsp_hipcie_write(uint32_t core, uint32_t value) "DxHIPCIE: Core %d write 0x%08x"
+adsp_dsp_hipcie_read(uint32_t core, uint32_t value) "DxHIPCIE: Core %d read 0x%08x"
+adsp_dsp_sbipcie_write(uint32_t core, uint32_t value) "DxSBIPCIE: Core %d write 0x%08x"
+adsp_dsp_sbipcie_read(uint32_t core, uint32_t value) "DxSBIPCIE: Core %d read 0x%08x"
+adsp_dsp_hipcis_read(uint32_t value) "HIPCIS: read 0x%08x (active IPCs)"
+
+# ACE3.x SoC Power State Requests
+adsp_dsp_spsreq_write(uint32_t value, uint32_t ddr, uint32_t vnn, uint32_t sleep) "SPSREQ: write 0x%08x (DDR=%d, Vnn=%d, Sleep=%d)"
+adsp_dsp_spsreq_read(uint32_t value) "SPSREQ: read 0x%08x"
+adsp_dsp_spsrsp_write(uint32_t value) "SPSRSP: write 0x%08x (clear events)"
+adsp_dsp_spsrsp_read(uint32_t value, uint32_t ddr_evt, uint32_t vnn_evt) "SPSRSP: read 0x%08x (DDR_evt=%d, Vnn_evt=%d)"
+
+# ACE3.x Latency Tolerance Reporting
+adsp_dsp_ltrc_write(uint32_t value, uint32_t snoop, uint32_t no_snoop, uint32_t gb) "LTRC: write 0x%08x (Snoop=%d, NoSnoop=%d, GB=%d)"
+adsp_dsp_ltrc_read(uint32_t value) "LTRC: read 0x%08x"
+
+# ACE3.x L2 Local Memory Configuration
+adsp_dsp_l2lmcap_read(uint32_t size_kb, uint32_t present) "L2LMCAP: size=%d KB, present=%d"
+adsp_dsp_l2mpat_write(uint32_t value, uint32_t base, uint32_t size) "L2MPAT: write 0x%08x (Base=0x%x, Size=%d KB)"
+adsp_dsp_l2mpat_read(uint32_t value) "L2MPAT: read 0x%08x"
+
+
+#mt8195.c
+adsp_dsp_cfg_read(uint32_t addr, uint32_t value) "mbox: R 0x%08x value 0x%8x"
+adsp_dsp_cfg_write(uint32_t addr, uint32_t value) "mbox: W 0x%08x value 0x%8x"
+adsp_dsp_clk_read(uint32_t addr, uint32_t value) "mbox: R 0x%08x value 0x%8x"
+adsp_dsp_clk_write(uint32_t addr, uint32_t value) "mbox: W 0x%08x value 0x%8x"
+adsp_dsp_mb_read(uint32_t addr, uint32_t value) "mbox: R 0x%08x value 0x%8x"
+adsp_dsp_mb_write(uint32_t addr, uint32_t value) "mbox: W 0x%08x value 0x%8x"

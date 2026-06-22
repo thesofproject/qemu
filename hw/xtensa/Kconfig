@@ -19,3 +19,8 @@ config XTENSA_XTFPGA
     select OPENCORES_ETH
     select PFLASH_CFI01
     select SERIAL_MM
+
+config XTENSA_CAVS
+    bool
+    default y
+    depends on XTENSA
