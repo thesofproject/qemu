@@ -90,11 +90,35 @@ static TCGv_i32 cpu_UR[256];
 static TCGv_i32 cpu_windowbase_next;
 static TCGv_i32 cpu_exclusive_addr;
 static TCGv_i32 cpu_exclusive_val;
+TCGv_i64 cpu_AE_DR[XCHAL_NUM_AE_DR];
+TCGv_i64 cpu_AE_VALIGN[XCHAL_NUM_AE_VALIGN];
+TCGv_i32 cpu_AE_EP[XCHAL_NUM_AE_EP];
+static TCGv_i32 cpu_AE_OVERFLOW;
+static TCGv_i32 cpu_AE_SAR;
+static TCGv_i32 cpu_AE_CBEGIN0;
+static TCGv_i32 cpu_AE_CEND0;
+static TCGv_i32 cpu_AE_CBEGIN1;
+static TCGv_i32 cpu_AE_CEND1;
+static TCGv_i32 cpu_AE_CWRAP;
+static TCGv_i32 cpu_AE_BITHEAD;
+static TCGv_i32 cpu_AE_BITPTR;
+static TCGv_i32 cpu_AE_BITSUSED;
+static TCGv_i32 cpu_AE_TABLESIZE;
+static TCGv_i32 cpu_AE_FIRST_TS;
+static TCGv_i32 cpu_AE_NEXTOFFSET;
+static TCGv_i32 cpu_AE_SEARCHDONE;
 
 static GHashTable *xtensa_regfile_table;
 
 static char *sr_name[256];
 static char *ur_name[256];
+
+static bool xtensa_ae_sb_debug_enabled(void)
+{
+    const char *env = g_getenv("QEMU_XTENSA_AE_SB_DEBUG");
+
+    return env && env[0] != '\0' && env[0] != '0';
+}
 
 void xtensa_collect_sr_names(const XtensaConfig *config)
 {
@@ -232,6 +256,86 @@ void xtensa_translate_init(void)
         tcg_global_mem_new_i32(tcg_env,
                                offsetof(CPUXtensaState, exclusive_val),
                                "exclusive_val");
+
+    for (i = 0; i < XCHAL_NUM_AE_DR; i++) {
+        char name[8];
+        snprintf(name, sizeof(name), "aed%d", i);
+        cpu_AE_DR[i] = tcg_global_mem_new_i64(tcg_env,
+                                              offsetof(CPUXtensaState,
+                                                       ae_dr[i]),
+                                              name);
+    }
+    for (i = 0; i < XCHAL_NUM_AE_VALIGN; i++) {
+        char name[8];
+        snprintf(name, sizeof(name), "u%d", i);
+        cpu_AE_VALIGN[i] = tcg_global_mem_new_i64(tcg_env,
+                                                  offsetof(CPUXtensaState,
+                                                           ae_valign[i]),
+                                                  name);
+    }
+    for (i = 0; i < XCHAL_NUM_AE_EP; i++) {
+        char name[8];
+        snprintf(name, sizeof(name), "aep%d", i);
+        cpu_AE_EP[i] = tcg_global_mem_new_i32(tcg_env,
+                                              offsetof(CPUXtensaState,
+                                                       ae_ep[i]),
+                                              name);
+    }
+    cpu_AE_SAR = tcg_global_mem_new_i32(tcg_env,
+                                        offsetof(CPUXtensaState, ae_sar),
+                                        "ae_sar");
+    cpu_AE_OVERFLOW = tcg_global_mem_new_i32(tcg_env,
+                                             offsetof(CPUXtensaState,
+                                                      ae_overflow),
+                                             "ae_overflow");
+    cpu_AE_CBEGIN0 = tcg_global_mem_new_i32(tcg_env,
+                                            offsetof(CPUXtensaState,
+                                                     ae_cbegin0),
+                                            "ae_cbegin0");
+    cpu_AE_CEND0 = tcg_global_mem_new_i32(tcg_env,
+                                          offsetof(CPUXtensaState,
+                                                   ae_cend0),
+                                          "ae_cend0");
+    cpu_AE_CBEGIN1 = tcg_global_mem_new_i32(tcg_env,
+                                            offsetof(CPUXtensaState,
+                                                     ae_cbegin1),
+                                            "ae_cbegin1");
+    cpu_AE_CEND1 = tcg_global_mem_new_i32(tcg_env,
+                                          offsetof(CPUXtensaState,
+                                                   ae_cend1),
+                                          "ae_cend1");
+    cpu_AE_CWRAP = tcg_global_mem_new_i32(tcg_env,
+                                          offsetof(CPUXtensaState,
+                                                   ae_cwrap),
+                                          "ae_cwrap");
+    cpu_AE_BITHEAD = tcg_global_mem_new_i32(tcg_env,
+                                            offsetof(CPUXtensaState,
+                                                     ae_bithead),
+                                            "ae_bithead");
+    cpu_AE_BITPTR = tcg_global_mem_new_i32(tcg_env,
+                                           offsetof(CPUXtensaState,
+                                                    ae_bitptr),
+                                           "ae_bitptr");
+    cpu_AE_BITSUSED = tcg_global_mem_new_i32(tcg_env,
+                                             offsetof(CPUXtensaState,
+                                                      ae_bitsused),
+                                             "ae_bitsused");
+    cpu_AE_TABLESIZE = tcg_global_mem_new_i32(tcg_env,
+                                              offsetof(CPUXtensaState,
+                                                       ae_tablesize),
+                                              "ae_tablesize");
+    cpu_AE_FIRST_TS = tcg_global_mem_new_i32(tcg_env,
+                                             offsetof(CPUXtensaState,
+                                                      ae_first_ts),
+                                             "ae_first_ts");
+    cpu_AE_NEXTOFFSET = tcg_global_mem_new_i32(tcg_env,
+                                               offsetof(CPUXtensaState,
+                                                        ae_nextoffset),
+                                               "ae_nextoffset");
+    cpu_AE_SEARCHDONE = tcg_global_mem_new_i32(tcg_env,
+                                               offsetof(CPUXtensaState,
+                                                        ae_searchdone),
+                                               "ae_searchdone");
 }
 
 void **xtensa_get_regfile_by_name(const char *name, int entries, int bits)
@@ -267,6 +371,13 @@ void **xtensa_get_regfile_by_name(const char *name, int entries, int bits)
                             (void *)"BR4 4x4", (void *)cpu_BR4);
         g_hash_table_insert(xtensa_regfile_table,
                             (void *)"BR8 2x8", (void *)cpu_BR8);
+
+        g_hash_table_insert(xtensa_regfile_table,
+                            (void *)"AE_DR 16x64", (void *)cpu_AE_DR);
+        g_hash_table_insert(xtensa_regfile_table,
+                            (void *)"AE_VALIGN 4x64", (void *)cpu_AE_VALIGN);
+        g_hash_table_insert(xtensa_regfile_table,
+                    (void *)"AE_EP 4x8", (void *)cpu_AE_EP);
     }
 
     geometry_name = g_strdup_printf("%s %dx%d", name, entries, bits);
@@ -844,7 +955,7 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
     int slot, slots;
     unsigned i;
     uint32_t op_flags = 0;
-    struct slot_prop slot_prop[MAX_INSN_SLOTS];
+    struct slot_prop slot_prop[MAX_INSN_SLOTS] = { };
     struct slot_prop *ordered[MAX_INSN_SLOTS];
     struct opcode_arg_copy arg_copy[MAX_INSN_SLOTS * MAX_OPCODE_ARGS];
     unsigned n_arg_copy = 0;
@@ -877,6 +988,8 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
     slots = xtensa_format_num_slots(isa, fmt);
     for (slot = 0; slot < slots; ++slot) {
         xtensa_opcode opc;
+        const char *opc_name;
+        bool trace_ae_sb;
         int opnd, vopnd, opnds;
         OpcodeArg *arg = slot_prop[slot].arg;
         XtensaOpcodeOps *ops;
@@ -890,7 +1003,16 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
             gen_exception_cause(dc, ILLEGAL_INSTRUCTION_CAUSE);
             return;
         }
+        opc_name = xtensa_opcode_name(isa, opc);
+        trace_ae_sb = xtensa_ae_sb_debug_enabled() &&
+                      g_str_has_prefix(opc_name, "ae_sb");
         opnds = xtensa_opcode_num_operands(isa, opc);
+
+        if (trace_ae_sb) {
+            fprintf(stderr,
+                    "[ae_sb-debug] pc=%08x fmt=%d slot=%d opc=%s opnds=%d\n",
+                    dc->pc, fmt, slot, opc_name, opnds);
+        }
 
         for (opnd = vopnd = 0; opnd < opnds; ++opnd) {
             void **register_file = NULL;
@@ -903,15 +1025,30 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
                 if (rf == dc->config->a_regfile) {
                     uint32_t v;
 
+                    if (trace_ae_sb) {
+                        fprintf(stderr,
+                                "[ae_sb-debug]   opnd=%d windowed get_field begin\n",
+                                opnd);
+                    }
                     xtensa_operand_get_field(isa, opc, opnd, fmt, slot,
                                              dc->slotbuf, &v);
                     xtensa_operand_decode(isa, opc, opnd, &v);
                     windowed_register |= 1u << v;
+                    if (trace_ae_sb) {
+                        fprintf(stderr,
+                                "[ae_sb-debug]   opnd=%d windowed field=%u\n",
+                                opnd, v);
+                    }
                 }
             }
             if (xtensa_operand_is_visible(isa, opc, opnd)) {
                 uint32_t v;
 
+                if (trace_ae_sb) {
+                    fprintf(stderr,
+                            "[ae_sb-debug]   opnd=%d visible get_field begin\n",
+                            opnd);
+                }
                 xtensa_operand_get_field(isa, opc, opnd, fmt, slot,
                                          dc->slotbuf, &v);
                 xtensa_operand_decode(isa, opc, opnd, &v);
@@ -927,8 +1064,18 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
                 } else {
                     arg[vopnd].num_bits = 32;
                 }
+                if (trace_ae_sb) {
+                    fprintf(stderr,
+                            "[ae_sb-debug]   opnd=%d vopnd=%d raw=%u imm=%u in=%p out=%p bits=%u\n",
+                            opnd, vopnd, arg[vopnd].raw_imm, arg[vopnd].imm,
+                            arg[vopnd].in, arg[vopnd].out, arg[vopnd].num_bits);
+                }
                 ++vopnd;
             }
+        }
+        if (trace_ae_sb) {
+            fprintf(stderr, "[ae_sb-debug] slot=%d operand extraction done\n",
+                    slot);
         }
         ops = dc->config->opcode_ops[opc];
         slot_prop[slot].ops = ops;
@@ -1160,6 +1307,9 @@ static void xtensa_tr_tb_start(DisasContextBase *dcbase, CPUState *cpu)
 static void xtensa_tr_insn_start(DisasContextBase *dcbase, CPUState *cpu)
 {
     tcg_gen_insn_start(dcbase->pc_next, 0, 0);
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_iaccess(tcg_env, tcg_constant_i32(dcbase->pc_next));
+#endif
 }
 
 static void xtensa_tr_translate_insn(DisasContextBase *dcbase, CPUState *cpu)
@@ -1240,7 +1390,17 @@ void xtensa_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
     CPUXtensaState *env = cpu_env(cs);
     xtensa_isa isa = env->config->isa;
+    bool has_hifi = false;
     int i, j;
+
+    if (env->config->opcode_translators) {
+        for (i = 0; env->config->opcode_translators[i]; ++i) {
+            if (env->config->opcode_translators[i] == &xtensa_hifi_opcodes) {
+                has_hifi = true;
+                break;
+            }
+        }
+    }
 
     qemu_fprintf(f, "PC=%08x\n\n", env->pc);
 
@@ -1277,6 +1437,35 @@ void xtensa_cpu_dump_state(CPUState *cs, FILE *f, int flags)
         }
     }
 
+    if (has_hifi) {
+        qemu_fprintf(f, "\n");
+
+        for (i = 0; i < XCHAL_NUM_AE_DR; ++i) {
+            qemu_fprintf(f, "AED%02d=%016" PRIx64 "%c",
+                         i, env->ae_dr[i], (i % 2) == 1 ? '\n' : ' ');
+        }
+
+        qemu_fprintf(f, "\n");
+        for (i = 0; i < XCHAL_NUM_AE_VALIGN; ++i) {
+            qemu_fprintf(f, "AEU%d=%016" PRIx64 "%c",
+                         i, env->ae_valign[i], (i % 2) == 1 ? '\n' : ' ');
+        }
+
+        qemu_fprintf(f,
+                     "\n"
+                     "AE_OVF=%08x AE_SAR=%08x AE_CWRAP=%08x AE_BITHEAD=%08x\n"
+                     "AE_CBEGIN0=%08x AE_CEND0=%08x AE_CBEGIN1=%08x AE_CEND1=%08x\n"
+                     "AE_BITPTR=%08x AE_BITSUSED=%08x AE_TABLESIZE=%08x AE_FIRST_TS=%08x\n"
+                     "AE_NEXTOFFSET=%08x AE_SEARCHDONE=%08x\n",
+                     env->ae_overflow, env->ae_sar,
+                     env->ae_cwrap, env->ae_bithead,
+                     env->ae_cbegin0, env->ae_cend0,
+                     env->ae_cbegin1, env->ae_cend1,
+                     env->ae_bitptr, env->ae_bitsused,
+                     env->ae_tablesize, env->ae_first_ts,
+                     env->ae_nextoffset, env->ae_searchdone);
+    }
+
     if ((flags & CPU_DUMP_FPU) &&
         xtensa_option_enabled(env->config, XTENSA_OPTION_FP_COPROCESSOR)) {
         qemu_fprintf(f, "\n");
@@ -1300,6 +1489,20 @@ void xtensa_cpu_dump_state(CPUState *cs, FILE *f, int flags)
                          *(double *)(&env->fregs[i].f64),
                          (i % 2) == 1 ? '\n' : ' ');
         }
+    }
+
+    if (env->icache.accesses || env->dcache.accesses) {
+        qemu_fprintf(f,
+                     "\nICACHE: access=%" PRIu64 " hit=%" PRIu64
+                     " miss=%" PRIu64 " evict=%" PRIu64 "\n"
+                     "DCACHE: access=%" PRIu64 " hit=%" PRIu64
+                     " miss=%" PRIu64 " evict=%" PRIu64
+                     " writeback=%" PRIu64 "\n",
+                     env->icache.accesses, env->icache.hits,
+                     env->icache.misses, env->icache.evictions,
+                     env->dcache.accesses, env->dcache.hits,
+                     env->dcache.misses, env->dcache.evictions,
+                     env->dcache.writebacks);
     }
 }
 
@@ -1514,14 +1717,49 @@ static void translate_const16(DisasContext *dc, const OpcodeArg arg[],
     tcg_gen_deposit_i32(arg[0].out, c, arg[0].in, 16, 16);
 }
 
-static void translate_dcache(DisasContext *dc, const OpcodeArg arg[],
-                             const uint32_t par[])
+static void translate_dcache_invalidate(DisasContext *dc, const OpcodeArg arg[],
+                                        const uint32_t par[])
 {
+#ifndef CONFIG_USER_ONLY
     TCGv_i32 addr = tcg_temp_new_i32();
-    TCGv_i32 res = tcg_temp_new_i32();
 
     tcg_gen_addi_i32(addr, arg[0].in, arg[1].imm);
-    tcg_gen_qemu_ld_i32(res, addr, dc->cring, MO_UB);
+    gen_helper_cache_dinvalidate(tcg_env, addr);
+#endif
+}
+
+static void translate_dcache_prefetch(DisasContext *dc, const OpcodeArg arg[],
+                                      const uint32_t par[])
+{
+#ifndef CONFIG_USER_ONLY
+    TCGv_i32 addr = tcg_temp_new_i32();
+
+    tcg_gen_addi_i32(addr, arg[0].in, arg[1].imm);
+    gen_helper_cache_dprefetch(tcg_env, addr);
+#endif
+}
+
+static void translate_icache_prefetch(DisasContext *dc, const OpcodeArg arg[],
+                                      const uint32_t par[])
+{
+#ifndef CONFIG_USER_ONLY
+    TCGv_i32 addr = tcg_temp_new_i32();
+
+    tcg_gen_addi_i32(addr, arg[0].in, arg[1].imm);
+    gen_helper_cache_iprefetch(tcg_env, addr);
+#endif
+}
+
+static void translate_dcache_lock_prefetch(DisasContext *dc,
+                                           const OpcodeArg arg[],
+                                           const uint32_t par[])
+{
+#ifndef CONFIG_USER_ONLY
+    TCGv_i32 addr = tcg_temp_new_i32();
+
+    tcg_gen_addi_i32(addr, arg[0].in, arg[1].imm);
+    gen_helper_cache_din_lock_pref(tcg_env, addr);
+#endif
 }
 
 static void translate_depbits(DisasContext *dc, const OpcodeArg arg[],
@@ -1562,6 +1800,8 @@ static void translate_entry(DisasContext *dc, const OpcodeArg arg[],
     TCGv_i32 s = tcg_constant_i32(arg[0].imm);
     TCGv_i32 imm = tcg_constant_i32(arg[1].imm);
     gen_helper_entry(tcg_env, pc, s, imm);
+    gen_helper_sync_windowbase(tcg_env);
+    gen_helper_log_entry(tcg_env, pc);
 }
 
 static void translate_extui(DisasContext *dc, const OpcodeArg arg[],
@@ -1584,14 +1824,29 @@ static void translate_getex(DisasContext *dc, const OpcodeArg arg[],
     tcg_gen_mov_i32(arg[0].out, tmp);
 }
 
-static void translate_icache(DisasContext *dc, const OpcodeArg arg[],
-                             const uint32_t par[])
+static void translate_icache_op(DisasContext *dc, const OpcodeArg arg[],
+                                const uint32_t par[])
 {
 #ifndef CONFIG_USER_ONLY
     TCGv_i32 addr = tcg_temp_new_i32();
 
     tcg_gen_movi_i32(cpu_pc, dc->pc);
     tcg_gen_addi_i32(addr, arg[0].in, arg[1].imm);
+    gen_helper_cache_iaccess(tcg_env, addr);
+    gen_helper_itlb_hit_test(tcg_env, addr);
+#endif
+}
+
+static void translate_icache_lock_prefetch(DisasContext *dc,
+                                           const OpcodeArg arg[],
+                                           const uint32_t par[])
+{
+#ifndef CONFIG_USER_ONLY
+    TCGv_i32 addr = tcg_temp_new_i32();
+
+    tcg_gen_movi_i32(cpu_pc, dc->pc);
+    tcg_gen_addi_i32(addr, arg[0].in, arg[1].imm);
+    gen_helper_cache_in_lock_pref(tcg_env, addr);
     gen_helper_itlb_hit_test(tcg_env, addr);
 #endif
 }
@@ -1626,6 +1881,9 @@ static void translate_l32e(DisasContext *dc, const OpcodeArg arg[],
 
     tcg_gen_addi_i32(addr, arg[1].in, arg[2].imm);
     mop = gen_load_store_alignment(dc, MO_TEUL, addr);
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
     tcg_gen_qemu_ld_tl(arg[0].out, addr, dc->ring, mop);
 }
 
@@ -1654,6 +1912,9 @@ static void translate_l32ex(DisasContext *dc, const OpcodeArg arg[],
     tcg_gen_mov_i32(addr, arg[1].in);
     mop = gen_load_store_alignment(dc, MO_TEUL | MO_ALIGN, addr);
     gen_check_exclusive(dc, addr, false);
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
     tcg_gen_qemu_ld_i32(arg[0].out, addr, dc->cring, mop);
     tcg_gen_mov_i32(cpu_exclusive_addr, addr);
     tcg_gen_mov_i32(cpu_exclusive_val, arg[0].out);
@@ -1672,8 +1933,14 @@ static void translate_ldst(DisasContext *dc, const OpcodeArg arg[],
         if (par[1]) {
             tcg_gen_mb(TCG_BAR_STRL | TCG_MO_ALL);
         }
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_tl(arg[0].in, addr, dc->cring, mop);
     } else {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_tl(arg[0].out, addr, dc->cring, mop);
         if (par[1]) {
             tcg_gen_mb(TCG_BAR_LDAQ | TCG_MO_ALL);
@@ -1698,6 +1965,9 @@ static void translate_l32r(DisasContext *dc, const OpcodeArg arg[],
     } else {
         tmp = tcg_constant_i32(arg[1].imm);
     }
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_daccess(tcg_env, tmp, tcg_constant_i32(0));
+#endif
     tcg_gen_qemu_ld_i32(arg[0].out, tmp, dc->cring, MO_TEUL);
 }
 
@@ -1753,6 +2023,9 @@ static void translate_mac16(DisasContext *dc, const OpcodeArg arg[],
 
         tcg_gen_addi_i32(vaddr, arg[1].in, ld_offset);
         mop = gen_load_store_alignment(dc, MO_TEUL, vaddr);
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, vaddr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_tl(mem32, vaddr, dc->cring, mop);
     }
     if (op != MAC16_NONE) {
@@ -1998,6 +2271,7 @@ static void translate_rer(DisasContext *dc, const OpcodeArg arg[],
 static void translate_ret(DisasContext *dc, const OpcodeArg arg[],
                           const uint32_t par[])
 {
+    gen_helper_log_ret(tcg_env, tcg_constant_i32(dc->pc));
     gen_jump(dc, cpu_R[0]);
 }
 
@@ -2025,6 +2299,7 @@ static void translate_retw(DisasContext *dc, const OpcodeArg arg[],
                      cpu_SR[WINDOW_START], tmp);
     tcg_gen_movi_i32(tmp, dc->pc);
     tcg_gen_deposit_i32(tmp, tmp, cpu_R[0], 0, 30);
+    gen_helper_log_ret(tcg_env, tcg_constant_i32(dc->pc));
     gen_helper_retw(tcg_env, cpu_R[0]);
     gen_jump(dc, tmp);
 }
@@ -2032,6 +2307,7 @@ static void translate_retw(DisasContext *dc, const OpcodeArg arg[],
 static void translate_rfde(DisasContext *dc, const OpcodeArg arg[],
                            const uint32_t par[])
 {
+    gen_helper_check_ring_switch(tcg_env);
     gen_jump(dc, cpu_SR[dc->config->ndepc ? DEPC : EPC1]);
 }
 
@@ -2039,6 +2315,8 @@ static void translate_rfe(DisasContext *dc, const OpcodeArg arg[],
                           const uint32_t par[])
 {
     tcg_gen_andi_i32(cpu_SR[PS], cpu_SR[PS], ~PS_EXCM);
+    gen_helper_check_ring_switch(tcg_env);
+    gen_helper_log_ret(tcg_env, tcg_constant_i32(dc->pc));
     gen_jump(dc, cpu_SR[EPC1]);
 }
 
@@ -2046,6 +2324,8 @@ static void translate_rfi(DisasContext *dc, const OpcodeArg arg[],
                           const uint32_t par[])
 {
     tcg_gen_mov_i32(cpu_SR[PS], cpu_SR[EPS2 + arg[0].imm - 2]);
+    gen_helper_check_ring_switch(tcg_env);
+    gen_helper_log_ret(tcg_env, tcg_constant_i32(dc->pc));
     gen_jump(dc, cpu_SR[EPC1 + arg[0].imm - 1]);
 }
 
@@ -2183,6 +2463,9 @@ static void translate_s32c1i(DisasContext *dc, const OpcodeArg arg[],
     tcg_gen_addi_i32(addr, arg[1].in, arg[2].imm);
     mop = gen_load_store_alignment(dc, MO_TEUL | MO_ALIGN, addr);
     gen_check_atomctl(dc, addr);
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
     tcg_gen_atomic_cmpxchg_i32(arg[0].out, addr, cpu_SR[SCOMPARE1],
                                tmp, dc->cring, mop);
 }
@@ -2195,6 +2478,9 @@ static void translate_s32e(DisasContext *dc, const OpcodeArg arg[],
 
     tcg_gen_addi_i32(addr, arg[1].in, arg[2].imm);
     mop = gen_load_store_alignment(dc, MO_TEUL, addr);
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
     tcg_gen_qemu_st_tl(arg[0].in, addr, dc->ring, mop);
 }
 
@@ -2212,6 +2498,9 @@ static void translate_s32ex(DisasContext *dc, const OpcodeArg arg[],
     mop = gen_load_store_alignment(dc, MO_TEUL | MO_ALIGN, addr);
     tcg_gen_brcond_i32(TCG_COND_NE, addr, cpu_exclusive_addr, label);
     gen_check_exclusive(dc, addr, true);
+#ifndef CONFIG_USER_ONLY
+    gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
     tcg_gen_atomic_cmpxchg_i32(prev, cpu_exclusive_addr, cpu_exclusive_val,
                                arg[0].in, dc->cring, mop);
     tcg_gen_setcond_i32(TCG_COND_EQ, res, prev, cpu_exclusive_val);
@@ -2442,6 +2731,13 @@ static void translate_wsr(DisasContext *dc, const OpcodeArg arg[],
 {
     if (sr_name[par[0]]) {
         tcg_gen_mov_i32(cpu_SR[par[0]], arg[0].in);
+        /* 194 to 199 map conventionally to EPS2 through EPS7 */
+        if (par[0] >= 194 && par[0] <= 199) {
+            gen_helper_check_wsr_eps(tcg_env, cpu_SR[par[0]]);
+        }
+        if (par[0] == 232) {
+            gen_helper_check_wsr_excause(tcg_env, cpu_SR[par[0]]);
+        }
     }
 }
 
@@ -2578,6 +2874,7 @@ static void translate_wsr_ps(DisasContext *dc, const OpcodeArg arg[],
         mask |= PS_RING;
     }
     tcg_gen_andi_i32(cpu_SR[par[0]], arg[0].in, mask);
+    gen_helper_check_ring_switch(tcg_env);
 #endif
 }
 
@@ -2995,24 +3292,24 @@ static const XtensaOpcodeOps core_ops[] = {
         .translate = translate_depbits,
     }, {
         .name = "dhi",
-        .translate = translate_dcache,
+        .translate = translate_dcache_invalidate,
         .op_flags = XTENSA_OP_PRIVILEGED,
     }, {
         .name = "dhi.b",
         .translate = translate_nop,
     }, {
         .name = "dhu",
-        .translate = translate_dcache,
+        .translate = translate_dcache_invalidate,
         .op_flags = XTENSA_OP_PRIVILEGED,
     }, {
         .name = "dhwb",
-        .translate = translate_dcache,
+        .translate = translate_dcache_invalidate,
     }, {
         .name = "dhwb.b",
         .translate = translate_nop,
     }, {
         .name = "dhwbi",
-        .translate = translate_dcache,
+        .translate = translate_dcache_invalidate,
     }, {
         .name = "dhwbi.b",
         .translate = translate_nop,
@@ -3038,7 +3335,7 @@ static const XtensaOpcodeOps core_ops[] = {
         .op_flags = XTENSA_OP_PRIVILEGED,
     }, {
         .name = "dpfl",
-        .translate = translate_dcache,
+        .translate = translate_dcache_lock_prefetch,
         .op_flags = XTENSA_OP_PRIVILEGED,
     }, {
         .name = "dpfm.b",
@@ -3048,28 +3345,28 @@ static const XtensaOpcodeOps core_ops[] = {
         .translate = translate_nop,
     }, {
         .name = "dpfr",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfr.b",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfr.bf",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfro",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfw",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfw.b",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfw.bf",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dpfwo",
-        .translate = translate_nop,
+        .translate = translate_dcache_prefetch,
     }, {
         .name = "dsync",
         .translate = translate_nop,
@@ -3078,8 +3375,7 @@ static const XtensaOpcodeOps core_ops[] = {
         .translate = translate_entry,
         .test_exceptions = test_exceptions_entry,
         .test_overflow = test_overflow_entry,
-        .op_flags = XTENSA_OP_EXIT_TB_M1 |
-            XTENSA_OP_SYNC_REGISTER_WINDOW,
+        .op_flags = XTENSA_OP_EXIT_TB_M1,
     }, {
         .name = "esync",
         .translate = translate_nop,
@@ -3108,10 +3404,10 @@ static const XtensaOpcodeOps core_ops[] = {
         .op_flags = XTENSA_OP_PRIVILEGED | XTENSA_OP_EXIT_TB_M1,
     }, {
         .name = "ihi",
-        .translate = translate_icache,
+        .translate = translate_icache_op,
     }, {
         .name = "ihu",
-        .translate = translate_icache,
+        .translate = translate_icache_op,
         .op_flags = XTENSA_OP_PRIVILEGED,
     }, {
         .name = "iii",
@@ -3133,10 +3429,10 @@ static const XtensaOpcodeOps core_ops[] = {
         .op_flags = XTENSA_OP_ILL | XTENSA_OP_NAME_ARRAY,
     }, {
         .name = "ipf",
-        .translate = translate_nop,
+        .translate = translate_icache_prefetch,
     }, {
         .name = "ipfl",
-        .translate = translate_icache,
+        .translate = translate_icache_lock_prefetch,
         .op_flags = XTENSA_OP_PRIVILEGED,
     }, {
         .name = "isync",
@@ -6435,8 +6731,14 @@ static void translate_ldsti(DisasContext *dc, const OpcodeArg arg[],
     tcg_gen_addi_i32(addr, arg[1].in, arg[2].imm);
     mop = gen_load_store_alignment(dc, MO_TEUL, addr);
     if (par[0]) {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_tl(arg[0].in, addr, dc->cring, mop);
     } else {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_tl(arg[0].out, addr, dc->cring, mop);
     }
     if (par[1]) {
@@ -6453,8 +6755,14 @@ static void translate_ldstx(DisasContext *dc, const OpcodeArg arg[],
     tcg_gen_add_i32(addr, arg[1].in, arg[2].in);
     mop = gen_load_store_alignment(dc, MO_TEUL, addr);
     if (par[0]) {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_tl(arg[0].in, addr, dc->cring, mop);
     } else {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_tl(arg[0].out, addr, dc->cring, mop);
     }
     if (par[1]) {
@@ -6892,8 +7200,14 @@ static void translate_ldsti_d(DisasContext *dc, const OpcodeArg arg[],
     }
     mop = gen_load_store_alignment(dc, MO_TEUQ, addr);
     if (par[0]) {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_i64(arg[0].in, addr, dc->cring, mop);
     } else {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_i64(arg[0].out, addr, dc->cring, mop);
     }
     if (par[2]) {
@@ -6921,10 +7235,16 @@ static void translate_ldsti_s(DisasContext *dc, const OpcodeArg arg[],
     mop = gen_load_store_alignment(dc, MO_TEUL, addr);
     if (par[0]) {
         get_f32_i1(arg, arg32, 0);
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_tl(arg32[0].in, addr, dc->cring, mop);
         put_f32_i1(arg, arg32, 0);
     } else {
         get_f32_o1(arg, arg32, 0);
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_tl(arg32[0].out, addr, dc->cring, mop);
         put_f32_o1(arg, arg32, 0);
     }
@@ -6951,8 +7271,14 @@ static void translate_ldstx_d(DisasContext *dc, const OpcodeArg arg[],
     }
     mop = gen_load_store_alignment(dc, MO_TEUQ, addr);
     if (par[0]) {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_i64(arg[0].in, addr, dc->cring, mop);
     } else {
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_i64(arg[0].out, addr, dc->cring, mop);
     }
     if (par[2]) {
@@ -6980,10 +7306,16 @@ static void translate_ldstx_s(DisasContext *dc, const OpcodeArg arg[],
     mop = gen_load_store_alignment(dc, MO_TEUL, addr);
     if (par[0]) {
         get_f32_i1(arg, arg32, 0);
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(1));
+#endif
         tcg_gen_qemu_st_tl(arg32[0].in, addr, dc->cring, mop);
         put_f32_i1(arg, arg32, 0);
     } else {
         get_f32_o1(arg, arg32, 0);
+#ifndef CONFIG_USER_ONLY
+        gen_helper_cache_daccess(tcg_env, addr, tcg_constant_i32(0));
+#endif
         tcg_gen_qemu_ld_tl(arg32[0].out, addr, dc->cring, mop);
         put_f32_o1(arg, arg32, 0);
     }
@@ -7672,3 +8004,5 @@ const XtensaOpcodeTranslators xtensa_fpu_opcodes = {
     .num_opcodes = ARRAY_SIZE(fpu_ops),
     .opcode = fpu_ops,
 };
+
+#include "translate-hifi-master.c.inc"

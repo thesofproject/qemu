@@ -33,6 +33,11 @@
 #include "system/memory.h"
 #include "qemu/atomic.h"
 #include "qemu/timer.h"
+#include "qemu/log.h"
+#include "exec/log.h"
+#ifndef CONFIG_USER_ONLY
+#include "system/runstate.h"
+#endif
 
 #ifndef CONFIG_USER_ONLY
 
@@ -196,6 +201,61 @@ void HELPER(wsr_memctl)(CPUXtensaState *env, uint32_t v)
     env->sregs[MEMCTL] = v & env->config->memctl_mask;
 }
 
+void HELPER(cache_iaccess)(CPUXtensaState *env, uint32_t vaddr)
+{
+    xtensa_cache_access(env, vaddr, false, false);
+}
+
+void HELPER(cache_iprefetch)(CPUXtensaState *env, uint32_t vaddr)
+{
+    xtensa_cache_prefetch(env, vaddr, false);
+}
+
+void HELPER(cache_daccess)(CPUXtensaState *env, uint32_t vaddr,
+                           uint32_t is_write)
+{
+    xtensa_cache_access(env, vaddr, true, is_write != 0);
+}
+
+void HELPER(cache_dprefetch)(CPUXtensaState *env, uint32_t vaddr)
+{
+    xtensa_cache_prefetch(env, vaddr, true);
+}
+
+void HELPER(cache_iinvalidate)(CPUXtensaState *env, uint32_t vaddr)
+{
+    xtensa_cache_invalidate(env, vaddr, false);
+}
+
+void HELPER(cache_din_lock_pref)(CPUXtensaState *env, uint32_t vaddr)
+{
+    /* PREF_LOCK.D: Prefetch with dcache lock. Access first, then lock. */
+    xtensa_cache_access(env, vaddr, true, false);
+    xtensa_cache_lock_line(env, vaddr, true);
+}
+
+void HELPER(cache_in_lock_pref)(CPUXtensaState *env, uint32_t vaddr)
+{
+    /* PREF_LOCK.I: Prefetch with icache lock. Access first, then lock. */
+    xtensa_cache_access(env, vaddr, false, false);
+    xtensa_cache_lock_line(env, vaddr, false);
+}
+
+void HELPER(cache_dinvalidate)(CPUXtensaState *env, uint32_t vaddr)
+{
+    xtensa_cache_invalidate(env, vaddr, true);
+}
+
+void HELPER(cache_iinvalidate_all)(CPUXtensaState *env)
+{
+    xtensa_cache_invalidate_all(env, false);
+}
+
+void HELPER(cache_dinvalidate_all)(CPUXtensaState *env)
+{
+    xtensa_cache_invalidate_all(env, true);
+}
+
 #endif
 
 uint32_t HELPER(rer)(CPUXtensaState *env, uint32_t addr)
@@ -214,4 +274,73 @@ void HELPER(wer)(CPUXtensaState *env, uint32_t data, uint32_t addr)
     address_space_stl(env->address_space_er, addr, data,
                       MEMTXATTRS_UNSPECIFIED, NULL);
 #endif
+}
+
+extern void __attribute__((weak)) ace_log_prefix(void);
+
+static uint32_t last_trace_sp[16] = {0};
+
+void HELPER(log_entry)(CPUXtensaState *env, uint32_t pc)
+{
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_FUNC))) {
+        uint32_t sp = env->regs[1];
+        CPUState *cs = env_cpu(env);
+        uint32_t cid = cs->cpu_index & 15;
+        
+        if (last_trace_sp[cid] != 0) {
+            uint32_t delta = (sp > last_trace_sp[cid]) ? (sp - last_trace_sp[cid]) : (last_trace_sp[cid] - sp);
+            if (delta > 8192) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log("--- STACK SWITCH DETECTED: sp abruptly jumped from 0x%08x to 0x%08x ---\n", last_trace_sp[cid], sp);
+            }
+        }
+        last_trace_sp[cid] = sp;
+
+        HELPER(update_ccount)(env);
+        if (ace_log_prefix) { ace_log_prefix(); }
+        qemu_log("FUNC ENTRY: pc=0x%08x sp=0x%08x ps=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x ccount=%u Imiss=%" PRIu64 " Dmiss=%" PRIu64 "\n",
+                 pc, env->regs[1], env->sregs[PS], 
+                 env->regs[2], env->regs[3], env->regs[4], env->regs[5], env->regs[6], env->regs[7],
+                 env->sregs[CCOUNT], env->icache.misses, env->dcache.misses);
+    }
+}
+
+void HELPER(log_ret)(CPUXtensaState *env, uint32_t pc)
+{
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_FUNC))) {
+        uint32_t sp = env->regs[1];
+        CPUState *cs = env_cpu(env);
+        uint32_t cid = cs->cpu_index & 15;
+        
+        if (last_trace_sp[cid] != 0) {
+            uint32_t delta = (sp > last_trace_sp[cid]) ? (sp - last_trace_sp[cid]) : (last_trace_sp[cid] - sp);
+            if (delta > 8192) {
+                if (ace_log_prefix) { ace_log_prefix(); }
+                qemu_log("--- STACK SWITCH DETECTED: sp abruptly jumped from 0x%08x to 0x%08x ---\n", last_trace_sp[cid], sp);
+            }
+        }
+        last_trace_sp[cid] = sp;
+
+        HELPER(update_ccount)(env);
+        if (ace_log_prefix) { ace_log_prefix(); }
+        qemu_log("FUNC RET:   pc=0x%08x sp=0x%08x ps=0x%08x ret=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x ccount=%u Imiss=%" PRIu64 " Dmiss=%" PRIu64 "\n",
+                 pc, env->regs[1], env->sregs[PS], env->regs[2],
+                 env->regs[2], env->regs[3], env->regs[4], env->regs[5], env->regs[6], env->regs[7],
+                 env->sregs[CCOUNT], env->icache.misses, env->dcache.misses);
+    }
+}
+
+void HELPER(check_wsr_excause)(CPUXtensaState *env, uint32_t val)
+{
+    if (val == 63) {
+        qemu_log("ZEPHYR FATAL ERROR (wsr.excause 63) DETECTED!\n");
+        fprintf(stderr, "ZEPHYR FATAL ERROR (wsr.excause 63) DETECTED!\n");
+        log_cpu_state(env_cpu(env), 0);
+        cpu_dump_state(env_cpu(env), stderr, 0);
+#ifndef CONFIG_USER_ONLY
+        if (!XTENSA_CPU(env_cpu(env))->continue_on_exception) {
+            qemu_system_guest_panicked(NULL);
+        }
+#endif
+    }
 }

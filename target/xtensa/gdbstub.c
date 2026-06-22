@@ -100,6 +100,14 @@ int xtensa_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
             return gdb_get_reg32(mem_buf,
                                  float32_val(env->fregs[i].f32[FP_F32_LOW]));
         case 8:
+            /* AE_DR (targno 0x1000-0x100f) and AE_VALIGN (0x1010-0x1013) */
+            if (reg->targno >= 0x1000 && reg->targno <= 0x100f) {
+                unsigned ae_idx = reg->targno & 0x000f;
+                return gdb_get_reg64(mem_buf, env->ae_dr[ae_idx]);
+            } else if (reg->targno >= 0x1010 && reg->targno <= 0x1013) {
+                unsigned val_idx = reg->targno - 0x1010;
+                return gdb_get_reg64(mem_buf, env->ae_valign[val_idx]);
+            }
             return gdb_get_reg64(mem_buf, float64_val(env->fregs[i].f64));
         default:
             qemu_log_mask(LOG_UNIMP, "%s from reg %d of unsupported size %d\n",
@@ -157,9 +165,19 @@ int xtensa_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
         case 4:
             env->fregs[reg->targno & 0x0f].f32[FP_F32_LOW] = make_float32(tmp);
             return 4;
-        case 8:
-            env->fregs[reg->targno & 0x0f].f64 = make_float64(tmp);
+        case 8: {
+            uint64_t v64 = ldq_p(mem_buf);
+            /* AE_DR (targno 0x1000-0x100f) and AE_VALIGN (0x1010-0x1013) */
+            if (reg->targno >= 0x1000 && reg->targno <= 0x100f) {
+                env->ae_dr[reg->targno & 0x000f] = v64;
+                return 8;
+            } else if (reg->targno >= 0x1010 && reg->targno <= 0x1013) {
+                env->ae_valign[reg->targno - 0x1010] = v64;
+                return 8;
+            }
+            env->fregs[reg->targno & 0x0f].f64 = make_float64(v64);
             return 8;
+        }
         default:
             qemu_log_mask(LOG_UNIMP, "%s to reg %d of unsupported size %d\n",
                           __func__, n, reg->size);
