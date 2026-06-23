@@ -10,3 +10,4 @@ core-test_kc705_be.c
 core-test_mmuhifi_c3.c
 core-ace30.c
 core-ace40.c
+core-cavs25.c
