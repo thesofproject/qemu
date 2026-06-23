@@ -13,6 +13,7 @@ xtensa_ss.add(when: 'CONFIG_XTENSA_CAVS', if_true: files(
   'intel_adsp/ace20.c',
   'intel_adsp/ace30.c',
   'intel_adsp/ace40.c',
+  'intel_adsp/cavs25.c',
   'intel_adsp/ace-dint.c',
   'intel_adsp/ace-shim.c',
   'intel_adsp/ace-hostwin.c',

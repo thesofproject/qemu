@@ -261,6 +261,10 @@ void adsp_monitor_ace_ipc(Monitor *mon, const QDict *qdict);
 void adsp_monitor_ace_ipc_tx(Monitor *mon, const QDict *qdict);
 void adsp_monitor_ace_ipc_rx(Monitor *mon, const QDict *qdict);
 
+/* cavs25.c — cAVS-layout IPC monitor hooks (used when board is cavs_boot) */
+void cavs_monitor_ipc_tx(Monitor *mon, const QDict *qdict);
+void cavs_monitor_ipc_rx(Monitor *mon, const QDict *qdict);
+
 /* ace-memory.c */
 void *ace_load_firmware(const char *filename);
 
@@ -273,6 +277,9 @@ extern struct adsp_mem_desc ace_ace15_mem[];
 
 extern struct adsp_mem_desc ace_ace20_mem[];
 #define ace_ace20_mem_num 4
+
+extern struct adsp_mem_desc cavs25_mem[];
+#define cavs25_mem_num 4
 
 extern const MemoryRegionOps unmapped_ops;
 

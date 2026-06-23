@@ -132,3 +132,30 @@ struct adsp_mem_desc ace_ace20_mem[] = {
     {.name = "rom", .base = ADSP_ACE_DSP_ROM_BASE,
         .size = ADSP_ACE_DSP_ROM_SIZE},
 };
+
+/* Memory descriptors for cAVS 2.5 (Tiger Lake) — see cavs25.c
+ *
+ * cAVS 2.5 memory map (differs from ACE — different SRAM/IMR bases):
+ * - HP-SRAM: 2944 KB at 0xbe000000 (sram0 / L2)
+ * - LP-SRAM:   64 KB at 0xbe800000 (sram1)
+ * - IMR:       16 MB at 0xb0000000 (L3, holds the signed FW image)
+ * - ROM: Boot ROM
+ */
+#define CAVS25_HP_SRAM_BASE 0xbe000000u
+#define CAVS25_HP_SRAM_SIZE (2944u * 1024u)
+#define CAVS25_LP_SRAM_BASE 0xbe800000u
+#define CAVS25_LP_SRAM_SIZE 0x10000u
+#define CAVS25_IMR_BASE     0xb0000000u
+#define CAVS25_IMR_SIZE     0x1000000u
+
+struct adsp_mem_desc cavs25_mem[] = {
+    {.name = "lp-sram", .base = CAVS25_LP_SRAM_BASE,
+        .size = CAVS25_LP_SRAM_SIZE},
+    {.name = "hp-sram", .base = CAVS25_HP_SRAM_BASE,
+        .size = CAVS25_HP_SRAM_SIZE,
+        .per_core_non_coherent = true},
+    {.name = "imr", .base = CAVS25_IMR_BASE,
+        .size = CAVS25_IMR_SIZE},
+    {.name = "rom", .base = ADSP_ACE_DSP_ROM_BASE,
+        .size = ADSP_ACE_DSP_ROM_SIZE},
+};

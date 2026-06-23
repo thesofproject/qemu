@@ -250,6 +250,13 @@ const MemoryRegionOps ace_ipc_ace3_io_ops = {
 void adsp_monitor_ace_ipc_tx(Monitor *mon, const QDict *qdict)
 {
     struct adsp_io_info *info = g_adsp_dev ? g_adsp_dev->ipc : NULL;
+
+    /* cAVS boards use a different IPC register layout + interrupt path. */
+    if (g_adsp_dev && g_adsp_dev->desc && g_adsp_dev->desc->cavs_boot) {
+        cavs_monitor_ipc_tx(mon, qdict);
+        return;
+    }
+
     uint32_t primary = qdict_get_int(qdict, "primary");
     int has_extension = qdict_haskey(qdict, "extension");
     uint32_t extension = has_extension ? qdict_get_int(qdict, "extension") : 0;
@@ -354,6 +361,13 @@ void adsp_monitor_ace_ipc_tx(Monitor *mon, const QDict *qdict)
 void adsp_monitor_ace_ipc_rx(Monitor *mon, const QDict *qdict)
 {
     struct adsp_io_info *info = g_adsp_dev ? g_adsp_dev->ipc : NULL;
+
+    /* cAVS boards use a different IPC register layout + interrupt path. */
+    if (g_adsp_dev && g_adsp_dev->desc && g_adsp_dev->desc->cavs_boot) {
+        cavs_monitor_ipc_rx(mon, qdict);
+        return;
+    }
+
     if (!info) {
         monitor_printf(mon, "IPC_RX: error=block_not_initialized\n");
         return;

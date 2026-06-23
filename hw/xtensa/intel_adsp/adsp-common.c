@@ -571,7 +571,14 @@ struct adsp_dev *adsp_ace_init(const struct adsp_desc *board,
     for (n = 0; n < board->num_mem; n++) {
         mem = &board->mem_region[n];
         if (mem->per_core_non_coherent) {
-            adsp_hpsram_setup(adsp, mem, ADSP_ACE40_DSP_LP_UNCACHE_BASE,
+            /*
+             * On cAVS (Tiger Lake et al.) the cache-bypassed alias of an
+             * SRAM region lives 0x20000000 below its cached address
+             * (SRAM_ALIAS_OFFSET).  ACE boards instead use a fixed window.
+             */
+            uint32_t uncache_base = board->cavs_boot ?
+                (mem->base - 0x20000000u) : ADSP_ACE40_DSP_LP_UNCACHE_BASE;
+            adsp_hpsram_setup(adsp, mem, uncache_base,
                               machine->smp.cpus);
         }
     }
@@ -670,6 +677,58 @@ struct adsp_dev *adsp_ace_init(const struct adsp_desc *board,
     
     adsp->fw_manifest = man_ptr;
     adsp->fw_manifest_size = size;
+
+    if (board->cavs_boot) {
+        /*
+         * cAVS (e.g. Tiger Lake) ROM-less boot.
+         *
+         * The kernel-facing ".ri" starts with an extended manifest that the
+         * host loader strips before handing the signed image to the CSE/Boot
+         * ROM.  We do the same: skip the extended manifest, copy the signed
+         * image into IMR at the firmware load offset and start executing the
+         * BRNGUP module directly (its entry point is module[0].entry_point,
+         * e.g. 0xb0038000 for TGL).  The real Boot ROM is not modelled.
+         */
+        struct adsp_mem_desc *imr_mem = adsp_get_mem_space(adsp, imr_addr);
+        int cavs_skip = adsp_get_ext_man_size(man_ptr);
+        uint8_t *img = (uint8_t *)man_ptr + cavs_skip;
+        int img_size = size - cavs_skip;
+        uint8_t *dp = img;
+        int walk = 0;
+
+        while (*((uint32_t *)dp) != HEADER_MAGIC) {
+            dp += sizeof(uint32_t);
+            walk += sizeof(uint32_t);
+            if (walk >= img_size) {
+                error_report("cavs: failed to find FW manifest header $AM1");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        if (!imr_mem) {
+            error_report("cavs: no IMR memory at 0x%08x", imr_addr);
+            exit(EXIT_FAILURE);
+        }
+        memcpy(imr_mem->ptr + board->cavs_fw_load_offset, img, img_size);
+
+        {
+            struct adsp_fw_desc *desc = (struct adsp_fw_desc *)dp;
+            CPUXtensaState *env = adsp->xtensa[0]->env;
+            uint32_t entry = desc->module[0].entry_point;
+
+            env->sregs[WINDOW_BASE] = 0;
+            env->sregs[WINDOW_START] = 1;
+            env->sregs[PS] = 0x00040000;
+            env->regs[1] = 0xbe200000; /* boot stack scratch in HP SRAM */
+            env->pc = entry;
+
+            ace_log("cavs: BRNGUP entry 0x%08x, image (0x%x bytes) loaded "
+                    "to IMR 0x%08x + 0x%x\n",
+                    entry, img_size, imr_addr, board->cavs_fw_load_offset);
+        }
+
+        return adsp;
+    }
 
     if (exec_addr) {
         mem = adsp_get_mem_space(adsp, exec_addr);
@@ -1090,6 +1149,28 @@ void adsp_create_memory_regions(struct adsp_dev *adsp)
         if (strcmp(board->mem_region[i].name, "imr") == 0 ||
             strcmp(board->mem_region[i].name, "lp-sram") == 0) {
             memset(board->mem_region[i].ptr, 0xff, board->mem_region[i].size);
+        }
+
+        /*
+         * On cAVS the cache-bypassed alias of an SRAM region lives
+         * 0x20000000 below its cached address (SRAM_ALIAS_OFFSET).  Firmware
+         * uses the uncached alias for coherent/DMA buffers.  Map it as a
+         * QEMU alias of the same backing RAM so both views stay coherent.
+         * (HP-SRAM's alias is handled separately in adsp_hpsram_setup().)
+         */
+        if (board->cavs_boot &&
+            strstr(board->mem_region[i].name, "sram") != NULL) {
+            MemoryRegion *uncached = g_new0(MemoryRegion, 1);
+            uint32_t alias_base = board->mem_region[i].base - 0x20000000u;
+            g_autofree char *alias_name =
+                g_strdup_printf("%s-uncached", board->mem_region[i].name);
+
+            memory_region_init_alias(uncached, NULL, alias_name,
+                                     &board->mem_region[i].mr, 0,
+                                     board->mem_region[i].size);
+            memory_region_add_subregion(adsp->system_memory, alias_base,
+                                        uncached);
+            board->mem_region[i].alias = alias_base;
         }
         
         /* Print memory region information */

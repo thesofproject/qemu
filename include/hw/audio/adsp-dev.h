@@ -72,6 +72,14 @@ struct adsp_desc {
     int ext_timer_irq;
     uint32_t imr_boot_ldr_offset;
     uint32_t file_offset;
+    /*
+     * cAVS (e.g. Tiger Lake) ROM-less boot: the signed image is copied into
+     * IMR at cavs_fw_load_offset and execution starts directly at the BRNGUP
+     * module entry point (the real Boot ROM is not modelled).  ACE machines
+     * leave cavs_boot=false and use the ACE bring-up path instead.
+     */
+    bool cavs_boot;
+    uint32_t cavs_fw_load_offset;
     int num_mem;
     struct adsp_mem_desc *mem_region;
     int num_io;
