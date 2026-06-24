@@ -437,6 +437,12 @@ static void cavs_shim_init(struct adsp_dev *adsp, MemoryRegion *parent,
  * (the two are the same hardware register seen from both ends).  The target
  * acknowledges by writing BIT(31) to its tfc, which clears it (and the
  * originating itc) to zero.
+ *
+ * On cAVS 2.5 a secondary core has no ROM: an IDC POWER_UP message makes it
+ * start executing immediately at the base of LP-SRAM (0xbe800000), where
+ * soc_start_core() has placed a trampoline that jumps to z_soc_mp_asm_entry
+ * (zephyr cavs/multiprocessing.c).  We model that by releasing the target
+ * core from runstall with its PC at the LP-SRAM base.
  * ------------------------------------------------------------------------- */
 
 #define CAVS_IDC_CORE_STRIDE    0x80u   /* per-source-core block size        */
@@ -447,6 +453,50 @@ static void cavs_shim_init(struct adsp_dev *adsp, MemoryRegion *parent,
 #define CAVS_IDC_IETC          0xcu
 #define CAVS_IDC_BUSY          (1u << 31)
 #define CAVS_L2_IDC_LINE       8        /* CAVS_L2_IDC = BIT(8) on cavs_intc0 */
+
+static void cavs_idc_start_core(struct adsp_dev *adsp, uint32_t core_num)
+{
+    struct adsp_xtensa *xt;
+
+    if (core_num == 0 || core_num >= ADSP_MAX_CORES) {
+        return;
+    }
+
+    xt = adsp->xtensa[core_num];
+    if (!xt || !xt->env) {
+        qemu_log("cavs_idc: IDC POWER_UP for absent core%u; start QEMU with "
+                 "-smp %u to model it\n", core_num, core_num + 1);
+        return;
+    }
+
+    if (!xt->env->runstall) {
+        return;     /* already running: this is a scheduler IPI, not a start */
+    }
+
+    /*
+     * Give the secondary core a coherent snapshot of the primary's HP-SRAM.
+     *
+     * BASEFW is copied into cached HP-SRAM at runtime by the primary's
+     * bring-up loader; in the per-core non-coherent model those writes land
+     * only in the primary's private shadow.  On real hardware the primary
+     * writes back / invalidates its cache before releasing a secondary, so
+     * the secondary sees that code and read-only data.  Mirror that here by
+     * snapshotting the primary's (core 0) shadow into the target core's
+     * shadow at start; cross-core mutable state lives in the uncached
+     * (coherent) alias and stays shared.
+     */
+    if (adsp->hpsram && core_num < (uint32_t)adsp->hpsram->num_cores &&
+        adsp->hpsram->per_core[0] && adsp->hpsram->per_core[core_num]) {
+        memcpy(adsp->hpsram->per_core[core_num], adsp->hpsram->per_core[0],
+               adsp->hpsram->size);
+    }
+
+    cpu_reset(CPU(xt->cpu));
+    xt->env->pc = ADSP_CAVS25_DSP_LP_SRAM_BASE;
+    xtensa_runstall(xt->env, false);
+    qemu_log("cavs_idc: core%u released, entry 0x%08x (IDC POWER_UP)\n",
+             core_num, ADSP_CAVS25_DSP_LP_SRAM_BASE);
+}
 
 static inline uint32_t cavs_idc_word(uint32_t src, uint32_t dst, uint32_t reg)
 {
@@ -479,9 +529,13 @@ static void cavs_idc_write(void *opaque, hwaddr addr, uint64_t val,
             info->region[cavs_idc_word(src, dst, CAVS_IDC_ITC)] = v;
             info->region[cavs_idc_word(dst, src, CAVS_IDC_TFC)] = v;
             if (v & CAVS_IDC_BUSY) {
+                /* POWER_UP releases a stalled secondary core; for an already
+                 * running core this is a scheduler IPI (handled by the IDC
+                 * interrupt below). */
+                cavs_idc_start_core(adsp, dst);
                 /* Latch the IDC interrupt at the target core.  Only core 0's
                  * L2 aggregator (cavs_intc0) is modelled, which covers the
-                 * secondary->primary IPI direction. */
+                 * secondary->primary IPI direction used during bring-up. */
                 if (dst == 0) {
                     cavs_intc0_set_line(adsp, CAVS_L2_IDC_LINE, 1);
                 }
@@ -831,7 +885,8 @@ static void xtensa_cavs25_machine_init(MachineClass *mc)
     mc->is_default   = false;
     mc->init         = cavs25_adsp_init;
     mc->max_cpus     = 4;
-    mc->default_cpus = 1;
+    mc->default_cpus = 4;   /* TGL has 4 DSP cores; firmware brings up
+                             * secondaries via IDC (see cavs_idc_write) */
     mc->default_cpu_type = XTENSA_CPU_TYPE_NAME("cavs25");
     adsp_machine_class_add_options(mc);
 }
