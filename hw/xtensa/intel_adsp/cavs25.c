@@ -69,9 +69,9 @@ extern struct adsp_dev *g_adsp_dev;
 #define ADSP_CAVS25_DSP_DMIC_BASE       0x00010000u
 #define ADSP_CAVS25_DSP_DMIC_SIZE       0x8000u
 
-/* IDC (inter-DSP-core doorbells) */
+/* IDC (inter-DSP-core doorbells): 4 source-core blocks of 0x80 each */
 #define ADSP_CAVS25_DSP_IDC_BASE        0x00001200u
-#define ADSP_CAVS25_DSP_IDC_SIZE        0x80u
+#define ADSP_CAVS25_DSP_IDC_SIZE        0x200u
 
 /* L2 host SRAM address translation (TLB) */
 #define ADSP_CAVS25_DSP_TLB_BASE        0x00003000u
@@ -419,6 +419,111 @@ static void cavs_shim_init(struct adsp_dev *adsp, MemoryRegion *parent,
         qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 }
 
+/* -------------------------------------------------------------------------
+ * cAVS 2.5 inter-DSP-core communication (IDC) @ 0x1200
+ *
+ * IDC lets DSP cores raise interrupts in one another and, on cAVS 2.5, is
+ * also how the primary core releases a secondary core from reset.  The
+ * register file is an array of per-source-core blocks (struct cavs_idc,
+ * zephyr cavs-idc.h), each 0x80 bytes:
+ *
+ *   IDC[src].core[dst] = { tfc@0, tefc@4, itc@8, ietc@12 }   (dst = 0..3)
+ *   IDC[src].busy_int @0x50, done_int @0x51
+ *
+ *   address(IDC[src].core[dst].reg) = 0x1200 + src*0x80 + dst*0x10 + reg
+ *
+ * Writing BIT(31) ("BUSY") to IDC[src].core[dst].itc latches an IDC
+ * interrupt for core dst and mirrors the value into IDC[dst].core[src].tfc
+ * (the two are the same hardware register seen from both ends).  The target
+ * acknowledges by writing BIT(31) to its tfc, which clears it (and the
+ * originating itc) to zero.
+ * ------------------------------------------------------------------------- */
+
+#define CAVS_IDC_CORE_STRIDE    0x80u   /* per-source-core block size        */
+#define CAVS_IDC_CORE_REGS      0x10u   /* per-target {tfc,tefc,itc,ietc}    */
+#define CAVS_IDC_TFC            0x0u
+#define CAVS_IDC_TEFC          0x4u
+#define CAVS_IDC_ITC           0x8u
+#define CAVS_IDC_IETC          0xcu
+#define CAVS_IDC_BUSY          (1u << 31)
+#define CAVS_L2_IDC_LINE       8        /* CAVS_L2_IDC = BIT(8) on cavs_intc0 */
+
+static inline uint32_t cavs_idc_word(uint32_t src, uint32_t dst, uint32_t reg)
+{
+    return (src * CAVS_IDC_CORE_STRIDE + dst * CAVS_IDC_CORE_REGS + reg) >> 2;
+}
+
+static uint64_t cavs_idc_read(void *opaque, hwaddr addr, unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    return info->region[addr >> 2];
+}
+
+static void cavs_idc_write(void *opaque, hwaddr addr, uint64_t val,
+        unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    struct adsp_dev *adsp = info->adsp;
+    uint32_t v = (uint32_t)val;
+    uint32_t src = addr / CAVS_IDC_CORE_STRIDE;
+    uint32_t off = addr % CAVS_IDC_CORE_STRIDE;
+
+    /* The per-target ITC/TFC doorbells occupy the first 0x40 of each block. */
+    if (off < 4 * CAVS_IDC_CORE_REGS) {
+        uint32_t dst = off / CAVS_IDC_CORE_REGS;
+        uint32_t reg = off % CAVS_IDC_CORE_REGS;
+
+        switch (reg) {
+        case CAVS_IDC_ITC:
+            /* Initiator->target doorbell; mirror into the peer TFC. */
+            info->region[cavs_idc_word(src, dst, CAVS_IDC_ITC)] = v;
+            info->region[cavs_idc_word(dst, src, CAVS_IDC_TFC)] = v;
+            if (v & CAVS_IDC_BUSY) {
+                /* Latch the IDC interrupt at the target core.  Only core 0's
+                 * L2 aggregator (cavs_intc0) is modelled, which covers the
+                 * secondary->primary IPI direction. */
+                if (dst == 0) {
+                    cavs_intc0_set_line(adsp, CAVS_L2_IDC_LINE, 1);
+                }
+            }
+            return;
+
+        case CAVS_IDC_TFC:
+            /* Writing BUSY acknowledges: TFC clears to zero, and so does the
+             * originating ITC (IDC[dst].core[src].itc). */
+            if (v & CAVS_IDC_BUSY) {
+                info->region[cavs_idc_word(src, dst, CAVS_IDC_TFC)] = 0;
+                info->region[cavs_idc_word(dst, src, CAVS_IDC_ITC)] = 0;
+                if (src == 0) {
+                    cavs_intc0_set_line(adsp, CAVS_L2_IDC_LINE, 0);
+                }
+            } else {
+                info->region[cavs_idc_word(src, dst, CAVS_IDC_TFC)] = v;
+            }
+            return;
+
+        default:    /* tefc / ietc: scratch data registers */
+            info->region[addr >> 2] = v;
+            return;
+        }
+    }
+
+    /* busy_int / done_int masks and remaining scratch: plain storage. */
+    info->region[addr >> 2] = v;
+}
+
+static const MemoryRegionOps cavs_idc_ops = {
+    .read  = cavs_idc_read,
+    .write = cavs_idc_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+};
+
+static void cavs_idc_init(struct adsp_dev *adsp, MemoryRegion *parent,
+        struct adsp_io_info *info)
+{
+    ace_log("cavs_idc: initialized at 0x%x\n", info->space->desc.base);
+}
+
 static uint64_t cavs_ipc_read(void *opaque, hwaddr addr, unsigned size)
 {
     struct adsp_io_info *info = opaque;
@@ -609,16 +714,22 @@ void cavs_monitor_ipc_rx(Monitor *mon, const QDict *qdict)
  */
 static struct adsp_reg_space cavs25_io[] = {
     /*
-     * Low DSP register window 0x1000-0xFFFF as one contiguous RAM-backed
-     * block.  This absorbs the IDC inter-core doorbells (0x1200), the host
-     * SRAM-window TLB (0x3000) and the power/clock/status registers the
-     * IMR-resident bring-up loader walks across this range (e.g. 0x12d0,
-     * 0x6200).  The firmware accesses these blocks past their nominal
-     * device-tree sizes during early multi-core init, so they are modelled
-     * as plain RAM up to the DMIC block at 0x10000.
+     * Low DSP register window 0x1000-0xFFFF, with the IDC inter-core
+     * doorbell block (0x1200) carved out as a live device.  The surrounding
+     * RAM-backed blocks absorb the host SRAM-window TLB (0x3000) and the
+     * power/clock/status registers the IMR-resident bring-up loader walks
+     * across this range (e.g. 0x12d0, 0x6200); the firmware accesses these
+     * past their nominal device-tree sizes during early multi-core init, so
+     * they are modelled as plain RAM up to the DMIC block at 0x10000.
      */
-    { .name = "dsp-lo-regs", .init = cavs_simple_io_init,
-        .desc = {.base = 0x00001000u, .size = 0xF000u}, },
+    { .name = "dsp-lo-regs-a", .init = cavs_simple_io_init,
+        .desc = {.base = 0x00001000u, .size = 0x200u}, },
+    /* IDC — inter-DSP-core doorbells / secondary-core start (cAVS layout) */
+    { .name = "cavs_idc", .init = cavs_idc_init, .ops = &cavs_idc_ops,
+        .desc = {.base = ADSP_CAVS25_DSP_IDC_BASE,
+                 .size = ADSP_CAVS25_DSP_IDC_SIZE}, },
+    { .name = "dsp-lo-regs-b", .init = cavs_simple_io_init,
+        .desc = {.base = 0x00001400u, .size = 0xEC00u}, },
     /* DMIC */
     { .name = "dmic", .init = cavs_simple_io_init,
         .desc = {.base = ADSP_CAVS25_DSP_DMIC_BASE,
