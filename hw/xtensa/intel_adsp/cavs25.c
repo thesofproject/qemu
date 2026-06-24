@@ -35,6 +35,7 @@
 #include "system/memory.h"
 #include "qemu/log.h"
 
+#include "qemu/timer.h"
 #include "hw/audio/adsp-dev.h"
 #include "hw/adsp/shim.h"
 #include "hw/adsp/ace.h"
@@ -295,6 +296,129 @@ static void cavs_intc0_init(struct adsp_dev *adsp, MemoryRegion *parent,
     ace_log("cavs_intc0: initialized at 0x%x\n", info->space->desc.base);
 }
 
+/* -------------------------------------------------------------------------
+ * cAVS 2.5 DSP wall-clock timer (SHIM DSPWCTCS @ 0x28, DSPWCTxC @ 0x30/0x38)
+ *
+ * The cAVS DSPWCTCS control register has a different bit layout from ACE and
+ * its comparator interrupt routes through the L2 aggregator (cavs_intc0), not
+ * the ACE DINT, so the ACE SHIM timer path cannot be reused verbatim:
+ *
+ *   - arm timer x        : DSP_WCT_CS_TA(x) = BIT(x)      (RW)
+ *   - timeout latch x    : DSP_WCT_CS_TT(x) = BIT(4 + x)  (W1C)
+ *   - timer x interrupt  : CAVS_L2_DWCTx = BIT(22 + x) on cavs_intc0 -> IRQ 6
+ *
+ * (zephyr soc.h DSP_WCT_CS_TA/TT, cavs-idc.h CAVS_L2_DWCT0/1,
+ *  drivers/timer/intel_adsp_timer.c set_compare()/compare_isr()).
+ *
+ * Everything else in the SHIM aperture (the DSPWC free-running counter, power,
+ * clock and IPC-enable mirrors) is identical to ACE and is delegated to the
+ * shared ace_shim_read()/ace_shim_write() handlers.  The register offsets
+ * (DSPWC 0x20, DSPWCTCS 0x28, DSPWCT0C 0x30, DSPWCT1C 0x38) match ACE, so the
+ * ace_set_time()/ace_rearm_ext_timer{0,1}() helpers are reused directly.
+ * ------------------------------------------------------------------------- */
+
+#define CAVS_DSPWCTCS_TA(x)     (1u << (x))        /* arm timer x (RW)      */
+#define CAVS_DSPWCTCS_TT(x)     (1u << (4 + (x)))  /* timeout latch x (W1C) */
+#define CAVS_DWCT_INTC_LINE(x)  (22 + (x))         /* cavs_intc0 child line */
+
+static void cavs_ext_timer_cb(struct adsp_dev *adsp, struct adsp_io_info *info,
+        int t)
+{
+    /* The arm bit auto-clears in hardware when the compare value is reached. */
+    info->region[SHIM_DSPWCTTCS >> 2] &= ~CAVS_DSPWCTCS_TA(t);
+    /* Latch the timeout status until FW acknowledges it with a W1C write. */
+    info->region[SHIM_DSPWCTTCS >> 2] |= CAVS_DSPWCTCS_TT(t);
+    /* Raise the comparator interrupt via the L2 aggregator (-> core IRQ 6). */
+    cavs_intc0_set_line(adsp, CAVS_DWCT_INTC_LINE(t), 1);
+}
+
+static void cavs_ext_timer_cb0(void *opaque)
+{
+    struct adsp_io_info *info = opaque;
+    cavs_ext_timer_cb(info->adsp, info, 0);
+}
+
+static void cavs_ext_timer_cb1(void *opaque)
+{
+    struct adsp_io_info *info = opaque;
+    cavs_ext_timer_cb(info->adsp, info, 1);
+}
+
+static void cavs_shim_arm_timer(struct adsp_dev *adsp,
+        struct adsp_io_info *info, int t, bool arm)
+{
+    if (arm) {
+        if (t == 0) {
+            ace_rearm_ext_timer0(adsp, info);
+        } else {
+            ace_rearm_ext_timer1(adsp, info);
+        }
+    } else {
+        /* Disarming cancels any pending comparator deadline. */
+        timer_del(adsp->timer[t].timer);
+    }
+}
+
+static void cavs_shim_write(void *opaque, hwaddr addr, uint64_t val,
+        unsigned size)
+{
+    struct adsp_io_info *info = opaque;
+    struct adsp_dev *adsp = info->adsp;
+
+    if ((addr & ~3u) == SHIM_DSPWCTTCS) {
+        uint32_t cur = info->region[SHIM_DSPWCTTCS >> 2];
+        uint32_t v = (uint32_t)val;
+        int t;
+
+        for (t = 0; t < 2; t++) {
+            /* Timeout latch bits are W1C: writing 1 clears the latch and
+             * drops the comparator interrupt line. */
+            if (v & CAVS_DSPWCTCS_TT(t)) {
+                cur &= ~CAVS_DSPWCTCS_TT(t);
+                cavs_intc0_set_line(adsp, CAVS_DWCT_INTC_LINE(t), 0);
+            }
+            /* Arm bits are RW: track the level FW programmed. */
+            if (v & CAVS_DSPWCTCS_TA(t)) {
+                cur |= CAVS_DSPWCTCS_TA(t);
+            } else {
+                cur &= ~CAVS_DSPWCTCS_TA(t);
+            }
+        }
+
+        info->region[SHIM_DSPWCTTCS >> 2] = cur;
+
+        /* (Re)arm or cancel each backing QEMU timer to match its arm bit. */
+        for (t = 0; t < 2; t++) {
+            cavs_shim_arm_timer(adsp, info, t, v & CAVS_DSPWCTCS_TA(t));
+        }
+        return;
+    }
+
+    ace_shim_write(opaque, addr, val, size);
+}
+
+static const MemoryRegionOps cavs_shim_ops = {
+    .read  = ace_shim_read,
+    .write = cavs_shim_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+};
+
+static void cavs_shim_init(struct adsp_dev *adsp, MemoryRegion *parent,
+        struct adsp_io_info *info)
+{
+    ace_shim_reset(info);
+    adsp->shim = info;
+
+    adsp->timer[0].timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                        &cavs_ext_timer_cb0, info);
+    adsp->timer[0].clk_kHz = adsp->clk_kHz;
+    adsp->timer[1].timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                        &cavs_ext_timer_cb1, info);
+    adsp->timer[1].clk_kHz = adsp->clk_kHz;
+    adsp->timer[0].start = adsp->timer[1].start =
+        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+}
+
 static uint64_t cavs_ipc_read(void *opaque, hwaddr addr, unsigned size)
 {
     struct adsp_io_info *info = opaque;
@@ -515,8 +639,8 @@ static struct adsp_reg_space cavs25_io[] = {
                  .size = ADSP_CAVS25_DSP_IPC_SIZE}, },
     { .name = "dsp-regs-b", .init = cavs_simple_io_init,
         .desc = {.base = 0x00071e30u, .size = 0xD0u}, },
-    /* SHIM (global DSP control) */
-    { .name = "shim", .init = &adsp_ace_shim_init, .ops = &ace_shim_ops,
+    /* SHIM (global DSP control); cAVS wall-clock timer layout differs from ACE */
+    { .name = "shim", .init = &cavs_shim_init, .ops = &cavs_shim_ops,
         .desc = {.base = ADSP_CAVS25_DSP_SHIM_BASE,
                  .size = ADSP_CAVS25_DSP_SHIM_SIZE}, },
     /*
