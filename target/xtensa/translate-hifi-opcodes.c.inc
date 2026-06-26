@@ -8,6 +8,8 @@
     { .name = "ae_movi",       .translate = translate_ae_movi_generic },
     { .name = "ae_movvfcrfsr", .translate = translate_ae_movvfcrfsr },
     { .name = "ae_movfcrfsrv", .translate = translate_ae_movfcrfsrv },
+    { .name = "ae_movdrzbvc",  .translate = translate_ae_movdrzbvc },
+    { .name = "ae_movzbvcdr",  .translate = translate_ae_movzbvcdr },
 
     /* -- HiFi AE user/state register access -- */
     { .name = "rur.ae_ovf_sar",      .translate = translate_ae_rur_ovf_sar },

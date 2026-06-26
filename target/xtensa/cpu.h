@@ -582,6 +582,7 @@ struct CPUArchState {
     uint32_t ae_first_ts;                   /* HiFi AE first timestamp */
     uint32_t ae_nextoffset;                 /* HiFi AE next offset */
     uint32_t ae_searchdone;                 /* HiFi AE search done state */
+    uint64_t ae_zbvc;                       /* HiFi5 packed ZBVC context state */
     uint32_t windowbase_next;
     uint32_t exclusive_addr;
     uint32_t exclusive_val;

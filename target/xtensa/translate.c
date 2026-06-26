@@ -108,6 +108,7 @@ static TCGv_i32 cpu_AE_TABLESIZE;
 static TCGv_i32 cpu_AE_FIRST_TS;
 static TCGv_i32 cpu_AE_NEXTOFFSET;
 static TCGv_i32 cpu_AE_SEARCHDONE;
+static TCGv_i64 cpu_AE_ZBVC;
 
 static GHashTable *xtensa_regfile_table;
 
@@ -345,6 +346,9 @@ void xtensa_translate_init(void)
                                                offsetof(CPUXtensaState,
                                                         ae_searchdone),
                                                "ae_searchdone");
+    cpu_AE_ZBVC = tcg_global_mem_new_i64(tcg_env,
+                                         offsetof(CPUXtensaState, ae_zbvc),
+                                         "ae_zbvc");
 }
 
 void **xtensa_get_regfile_by_name(const char *name, int entries, int bits)

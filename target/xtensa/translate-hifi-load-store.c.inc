@@ -1099,6 +1099,42 @@ static void translate_ae_movfcrfsrv(DisasContext *dc, const OpcodeArg arg[],
     gen_helper_wur_fpu_fsr(tcg_env, fsr);
 }
 
+/*
+ * translate_ae_movdrzbvc  --  pack HiFi5 bit-stream / NN context state to AE_DR
+ *
+ * ae_movdrzbvc(aed_out):
+ *   Save the opaque 64-bit ZBVC context state into an AE_DR register so the
+ *   coprocessor context-save path can spill it to memory. The matching
+ *   ae_movzbvcdr restores it. No implemented AE instruction produces this
+ *   state, so it is faithfully preserved as an opaque 64-bit blob.
+ *
+ *   arg[0]  AE_DR  out  -- destination register
+ */
+static void translate_ae_movdrzbvc(DisasContext *dc, const OpcodeArg arg[],
+                                   const uint32_t par[])
+{
+    if (!arg[0].out) {
+        return;
+    }
+    tcg_gen_mov_i64(arg[0].out, cpu_AE_ZBVC);
+}
+
+/*
+ * translate_ae_movzbvcdr  --  unpack AE_DR back into HiFi5 ZBVC context state
+ *
+ * ae_movzbvcdr(aed_in): inverse of ae_movdrzbvc.
+ *
+ *   arg[0]  AE_DR  in  -- source register
+ */
+static void translate_ae_movzbvcdr(DisasContext *dc, const OpcodeArg arg[],
+                                   const uint32_t par[])
+{
+    if (!arg[0].in) {
+        return;
+    }
+    tcg_gen_mov_i64(cpu_AE_ZBVC, arg[0].in);
+}
+
   enum {
     AE_USR_OVERFLOW,
     AE_USR_SAR,
