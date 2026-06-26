@@ -1142,6 +1142,8 @@ static void translate_ae_movzbvcdr(DisasContext *dc, const OpcodeArg arg[],
     AE_USR_CEND0,
     AE_USR_CBEGIN1,
     AE_USR_CEND1,
+    AE_USR_CBEGIN2,
+    AE_USR_CEND2,
     AE_USR_CWRAP,
     AE_USR_BITHEAD,
     AE_USR_BITPTR,
@@ -1167,6 +1169,10 @@ static void translate_ae_movzbvcdr(DisasContext *dc, const OpcodeArg arg[],
       return cpu_AE_CBEGIN1;
     case AE_USR_CEND1:
       return cpu_AE_CEND1;
+    case AE_USR_CBEGIN2:
+      return cpu_AE_CBEGIN2;
+    case AE_USR_CEND2:
+      return cpu_AE_CEND2;
     case AE_USR_CWRAP:
       return cpu_AE_CWRAP;
     case AE_USR_BITHEAD:

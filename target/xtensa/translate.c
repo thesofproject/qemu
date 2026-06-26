@@ -100,6 +100,8 @@ static TCGv_i32 cpu_AE_CBEGIN0;
 static TCGv_i32 cpu_AE_CEND0;
 static TCGv_i32 cpu_AE_CBEGIN1;
 static TCGv_i32 cpu_AE_CEND1;
+static TCGv_i32 cpu_AE_CBEGIN2;
+static TCGv_i32 cpu_AE_CEND2;
 static TCGv_i32 cpu_AE_CWRAP;
 static TCGv_i32 cpu_AE_BITHEAD;
 static TCGv_i32 cpu_AE_BITPTR;
@@ -314,6 +316,14 @@ void xtensa_translate_init(void)
                                           offsetof(CPUXtensaState,
                                                    ae_cend1),
                                           "ae_cend1");
+    cpu_AE_CBEGIN2 = tcg_global_mem_new_i32(tcg_env,
+                                            offsetof(CPUXtensaState,
+                                                     ae_cbegin2),
+                                            "ae_cbegin2");
+    cpu_AE_CEND2 = tcg_global_mem_new_i32(tcg_env,
+                                          offsetof(CPUXtensaState,
+                                                   ae_cend2),
+                                          "ae_cend2");
     cpu_AE_CWRAP = tcg_global_mem_new_i32(tcg_env,
                                           offsetof(CPUXtensaState,
                                                    ae_cwrap),

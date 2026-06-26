@@ -574,6 +574,8 @@ struct CPUArchState {
     uint32_t ae_cend0;                      /* HiFi AE circular end 0 */
     uint32_t ae_cbegin1;                    /* HiFi AE circular begin 1 */
     uint32_t ae_cend1;                      /* HiFi AE circular end 1 */
+    uint32_t ae_cbegin2;                    /* HiFi5 AE circular begin 2 */
+    uint32_t ae_cend2;                      /* HiFi5 AE circular end 2 */
     uint32_t ae_cwrap;                      /* HiFi AE circular wrap */
     uint32_t ae_bithead;                    /* HiFi AE bitstream head */
     uint32_t ae_bitptr;                     /* HiFi AE bit pointer */
