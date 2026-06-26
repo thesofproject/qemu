@@ -36,7 +36,7 @@
 
 /* Moved from ace.h */
 #define ADSP_ACE40_DSP_HP_SRAM_BASE     0xa0020000
-#define ADSP_ACE40_DSP_HP_SRAM_SIZE     0x200000  /* 2MB = 16 banks × 128KB */
+#define ADSP_ACE40_DSP_HP_SRAM_SIZE     0x480000  /* 4608KB = 36 banks × 128KB (NVL) */
 #define ADSP_ACE40_DSP_LP_SRAM_BASE     0xa0000000
 #define ADSP_ACE40_DSP_LP_SRAM_SIZE     0x10000   /* 64KB = 8 banks × 8KB */
 #define ADSP_ACE40_DSP_IMR_BASE         0xa1000000
