@@ -548,7 +548,7 @@ enum {
 #endif
 
 /* HiFi Audio Engine register file sizes */
-#define XCHAL_NUM_AE_DR     16  /* AE data registers (64-bit) */
+#define XCHAL_NUM_AE_DR     32  /* AE data registers (64-bit, HiFi5: 32) */
 #define XCHAL_NUM_AE_VALIGN  4  /* AE alignment registers (64-bit) */
 #define XCHAL_NUM_AE_EP      4  /* AE extension registers (8-bit modeled in i32) */
 

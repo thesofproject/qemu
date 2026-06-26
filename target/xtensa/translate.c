@@ -375,6 +375,8 @@ void **xtensa_get_regfile_by_name(const char *name, int entries, int bits)
         g_hash_table_insert(xtensa_regfile_table,
                             (void *)"AE_DR 16x64", (void *)cpu_AE_DR);
         g_hash_table_insert(xtensa_regfile_table,
+                            (void *)"AE_DR 32x64", (void *)cpu_AE_DR);
+        g_hash_table_insert(xtensa_regfile_table,
                             (void *)"AE_VALIGN 4x64", (void *)cpu_AE_VALIGN);
         g_hash_table_insert(xtensa_regfile_table,
                     (void *)"AE_EP 4x8", (void *)cpu_AE_EP);
