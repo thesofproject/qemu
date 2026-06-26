@@ -500,7 +500,7 @@ def parse_topology(tplg_path: Path, tt) -> dict:
                     dma_buf = _DMA_BUF_SIZE_DEFAULT if node_id != 0xFFFFFFFF else 0
                     extra = (_build_copier_out_fmt(_INLINE_FMT) +
                              struct.pack('<I', 0) +      # copier_feature_mask
-                             struct.pack('<III', node_id, dma_buf, 0))  # gtw_cfg
+                             struct.pack('<IIII', node_id, dma_buf, 0, 0))  # gtw_cfg (incl config_data[0])
                 else:
                     base_cfg = _build_base_module_cfg(tokens)
                 wi = WidgetInfo(name, uuid, core_id, base_cfg + extra)
@@ -572,7 +572,11 @@ def parse_inline_topology(spec: str, pipeline_id: int,
 
         # Build init data
         if nt in _COPIER_NODE_TYPES:
-            # ipc4_copier_module_cfg: base_cfg(40) + out_fmt(24) + feature_mask(4) + gtw_cfg(12)
+            # ipc4_copier_module_cfg: base_cfg(40) + out_fmt(24) + feature_mask(4) + gtw_cfg(16)
+            # gtw_cfg is struct ipc4_copier_gateway_cfg: node_id(4) + dma_buffer_size(4)
+            # + config_length(4) + config_data[1](4) = 16 bytes. The trailing config_data[0]
+            # word is part of sizeof(*copier) (84 bytes), so it must be present or copier_init()
+            # rejects the payload ("cfg size 84 exceeds init payload 80").
             # For inline chains: first copier is host-playback, last is host-capture,
             # middle copiers are module-copiers (no gateway).
             if nt == 'host':
@@ -593,7 +597,7 @@ def parse_inline_topology(spec: str, pipeline_id: int,
             init_data = (_build_base_module_cfg(_INLINE_FMT) +
                          _build_copier_out_fmt(_INLINE_FMT) +
                          struct.pack('<I', 0) +      # copier_feature_mask = 0
-                         struct.pack('<III', node_id, dma_buf, 0))  # gtw_cfg
+                         struct.pack('<IIII', node_id, dma_buf, 0, 0))  # gtw_cfg (incl config_data[0])
         else:
             # Other modules: base_cfg only; firmware uses compiled-in defaults
             init_data = _build_base_module_cfg(_INLINE_FMT)
