@@ -565,7 +565,8 @@ struct CPUArchState {
     } fregs[16];
     float_status fp_status;
     uint64_t ae_dr[XCHAL_NUM_AE_DR];       /* HiFi AE data registers */
-    uint64_t ae_valign[XCHAL_NUM_AE_VALIGN]; /* HiFi AE alignment regs */
+    uint64_t ae_valign[XCHAL_NUM_AE_VALIGN]; /* HiFi AE alignment regs (low 64) */
+    uint64_t ae_valign_hi[XCHAL_NUM_AE_VALIGN]; /* HiFi5 AE alignment regs (high 64) */
     uint32_t ae_ep[XCHAL_NUM_AE_EP];       /* HiFi AE extension regs */
     uint32_t ae_overflow;                   /* HiFi AE overflow state */
     uint32_t ae_sar;                        /* HiFi AE SAR state */

@@ -237,6 +237,10 @@
 
     { .name = "ae_s64.i",      .translate = translate_ae_s64_i,
       .op_flags = XTENSA_OP_STORE },
+    { .name = "ae_salign128.i", .translate = translate_ae_salign128_i,
+      .op_flags = XTENSA_OP_STORE },
+    { .name = "ae_lalign128.i", .translate = translate_ae_lalign128_i,
+      .op_flags = XTENSA_OP_LOAD },
     { .name = "ae_s64.ip",     .translate = translate_ae_s64_ip,
       .op_flags = XTENSA_OP_STORE },
     { .name = "ae_s64.x",      .translate = translate_ae_s64_x,

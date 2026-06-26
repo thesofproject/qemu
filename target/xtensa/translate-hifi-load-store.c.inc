@@ -355,6 +355,36 @@ static void translate_ae_s64_i(DisasContext *dc, const OpcodeArg arg[],
 }
 
 /*
+ * ae_salign128.i  u, as, imm
+ * Store a 128-bit AE_VALIGN register to [as + imm] (low 64 bits first,
+ * high 64 bits at +8). Used by the HiFi5 coprocessor context-save path.
+ */
+static void translate_ae_salign128_i(DisasContext *dc, const OpcodeArg arg[],
+                                      const uint32_t par[])
+{
+    TCGv_i32 addr = tcg_temp_new_i32();
+    tcg_gen_addi_i32(addr, arg[1].in, arg[2].imm);
+    tcg_gen_qemu_st_i64(arg[0].in, addr, dc->cring, MO_TEUQ);
+    tcg_gen_addi_i32(addr, addr, 8);
+    tcg_gen_qemu_st_i64(cpu_AE_VALIGN_HI[arg[0].imm], addr, dc->cring, MO_TEUQ);
+}
+
+/*
+ * ae_lalign128.i  u, as, imm
+ * Load a 128-bit AE_VALIGN register from [as + imm] (low 64 bits first,
+ * high 64 bits at +8). Used by the HiFi5 coprocessor context-restore path.
+ */
+static void translate_ae_lalign128_i(DisasContext *dc, const OpcodeArg arg[],
+                                      const uint32_t par[])
+{
+    TCGv_i32 addr = tcg_temp_new_i32();
+    tcg_gen_addi_i32(addr, arg[1].in, arg[2].imm);
+    tcg_gen_qemu_ld_i64(arg[0].out, addr, dc->cring, MO_TEUQ);
+    tcg_gen_addi_i32(addr, addr, 8);
+    tcg_gen_qemu_ld_i64(cpu_AE_VALIGN_HI[arg[0].imm], addr, dc->cring, MO_TEUQ);
+}
+
+/*
  * ae_s32x2.ip  aed, as, imm
  * ae_s64.ip    aed, as, imm
  * ae_s16x4.ip  aed, as, imm

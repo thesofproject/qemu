@@ -92,6 +92,7 @@ static TCGv_i32 cpu_exclusive_addr;
 static TCGv_i32 cpu_exclusive_val;
 TCGv_i64 cpu_AE_DR[XCHAL_NUM_AE_DR];
 TCGv_i64 cpu_AE_VALIGN[XCHAL_NUM_AE_VALIGN];
+TCGv_i64 cpu_AE_VALIGN_HI[XCHAL_NUM_AE_VALIGN];
 TCGv_i32 cpu_AE_EP[XCHAL_NUM_AE_EP];
 static TCGv_i32 cpu_AE_OVERFLOW;
 static TCGv_i32 cpu_AE_SAR;
@@ -273,6 +274,14 @@ void xtensa_translate_init(void)
                                                            ae_valign[i]),
                                                   name);
     }
+    for (i = 0; i < XCHAL_NUM_AE_VALIGN; i++) {
+        char name[12];
+        snprintf(name, sizeof(name), "u%d_hi", i);
+        cpu_AE_VALIGN_HI[i] = tcg_global_mem_new_i64(tcg_env,
+                                                     offsetof(CPUXtensaState,
+                                                              ae_valign_hi[i]),
+                                                     name);
+    }
     for (i = 0; i < XCHAL_NUM_AE_EP; i++) {
         char name[8];
         snprintf(name, sizeof(name), "aep%d", i);
@@ -378,6 +387,8 @@ void **xtensa_get_regfile_by_name(const char *name, int entries, int bits)
                             (void *)"AE_DR 32x64", (void *)cpu_AE_DR);
         g_hash_table_insert(xtensa_regfile_table,
                             (void *)"AE_VALIGN 4x64", (void *)cpu_AE_VALIGN);
+        g_hash_table_insert(xtensa_regfile_table,
+                            (void *)"AE_VALIGN 4x128", (void *)cpu_AE_VALIGN);
         g_hash_table_insert(xtensa_regfile_table,
                     (void *)"AE_EP 4x8", (void *)cpu_AE_EP);
     }
