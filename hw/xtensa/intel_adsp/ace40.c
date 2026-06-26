@@ -87,20 +87,20 @@
 #define ADSP_ACE40_DSP_GTW_HOST_OUT_STREAM_SIZE     0x40
 #define ADSP_ACE40_DSP_GTW_HOST_IN_STREAM_BASE(x)   (0x00072C00 + (x) * 0x40)
 #define ADSP_ACE40_DSP_GTW_HOST_IN_STREAM_SIZE      0x40
-#define ADSP_ACE40_DSP_GTW_RSVD_72E_BASE            0x00072E00
-#define ADSP_ACE40_DSP_GTW_RSVD_72E_SIZE            0x200
+#define ADSP_ACE40_DSP_GTW_RSVD_72E_BASE            0x00072EC0
+#define ADSP_ACE40_DSP_GTW_RSVD_72E_SIZE            0x140
 #define ADSP_ACE40_DSP_HFIPC_BASE               0x00073000
 #define ADSP_ACE40_DSP_HFIPC_SIZE               0x1000
 #define ADSP_ACE40_DSP_DSPCS_BASE               0x000178D00
 #define ADSP_ACE40_DSP_DSPCS_SIZE               0x1000
 #define ADSP_ACE40_DSP_GTW_LINK_OUT_STREAM_BASE(x)  (0x00079400 + (x) * 0x40)
 #define ADSP_ACE40_DSP_GTW_LINK_OUT_STREAM_SIZE     0x40
-#define ADSP_ACE40_DSP_GTW_RSVD_796_BASE            0x00079600
-#define ADSP_ACE40_DSP_GTW_RSVD_796_SIZE            0x200
+#define ADSP_ACE40_DSP_GTW_RSVD_796_BASE            0x00079640
+#define ADSP_ACE40_DSP_GTW_RSVD_796_SIZE            0x1C0
 #define ADSP_ACE40_DSP_GTW_LINK_IN_STREAM_BASE(x)   (0x00079800 + (x) * 0x40)
 #define ADSP_ACE40_DSP_GTW_LINK_IN_STREAM_SIZE      0x40
-#define ADSP_ACE40_DSP_GTW_RSVD_79A_BASE            0x00079A00
-#define ADSP_ACE40_DSP_GTW_RSVD_79A_SIZE            0x200
+#define ADSP_ACE40_DSP_GTW_RSVD_79A_BASE            0x00079AC0
+#define ADSP_ACE40_DSP_GTW_RSVD_79A_SIZE            0x140
 #define ADSP_ACE40_DSP_GPDMA_BASE               0x0007C000
 #define ADSP_ACE40_DSP_GPDMA_SIZE               0x4000
 #define ADSP_ACE40_DSP_SPI_BASE                 0x00080000
@@ -264,10 +264,10 @@ static struct adsp_reg_space ace_40_io[] = {
                 .size = ADSP_ACE40_DSP_HFTTS_SIZE }, },
     { .name = "gtw-hout", .init = hda_dma_init_dev, .ops = &ace_hda_stream_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_HOST_OUT_STREAM_BASE(0),
-                .size = ADSP_ACE40_DSP_GTW_HOST_OUT_STREAM_SIZE * 8 }, },
+                .size = ADSP_ACE40_DSP_GTW_HOST_OUT_STREAM_SIZE * 9 }, },
     { .name = "gtw-hin", .init = hda_dma_init_dev, .ops = &ace_hda_stream_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_HOST_IN_STREAM_BASE(0),
-                .size = ADSP_ACE40_DSP_GTW_HOST_IN_STREAM_SIZE * 8 }, },
+                .size = ADSP_ACE40_DSP_GTW_HOST_IN_STREAM_SIZE * 11 }, },
     { .name = "gtw-rsvd-72e", .init = hda_dma_init_dev, .ops = &unmapped_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_RSVD_72E_BASE,
                 .size = ADSP_ACE40_DSP_GTW_RSVD_72E_SIZE }, },
@@ -279,13 +279,13 @@ static struct adsp_reg_space ace_40_io[] = {
                 .size = ADSP_ACE40_DSP_DSPCS_SIZE }, },
     { .name = "gtw-lout", .init = hda_dma_init_dev, .ops = &ace_hda_stream_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_LINK_OUT_STREAM_BASE(0),
-                .size = ADSP_ACE40_DSP_GTW_LINK_OUT_STREAM_SIZE * 8 }, },
+                .size = ADSP_ACE40_DSP_GTW_LINK_OUT_STREAM_SIZE * 9 }, },
     { .name = "gtw-rsvd-796", .init = hda_dma_init_dev, .ops = &unmapped_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_RSVD_796_BASE,
                 .size = ADSP_ACE40_DSP_GTW_RSVD_796_SIZE }, },
     { .name = "gtw-lin", .init = hda_dma_init_dev, .ops = &ace_hda_stream_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_LINK_IN_STREAM_BASE(0),
-                .size = ADSP_ACE40_DSP_GTW_LINK_IN_STREAM_SIZE * 8 }, },
+                .size = ADSP_ACE40_DSP_GTW_LINK_IN_STREAM_SIZE * 11 }, },
     { .name = "gtw-rsvd-79a", .init = hda_dma_init_dev, .ops = &unmapped_ops,
       .desc = { .base = ADSP_ACE40_DSP_GTW_RSVD_79A_BASE,
                 .size = ADSP_ACE40_DSP_GTW_RSVD_79A_SIZE }, },
