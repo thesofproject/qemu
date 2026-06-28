@@ -29,6 +29,16 @@
 #define DMW_BA  0x00   /* DMWXBA — base address + config */
 #define DMW_LO  0x04   /* DMWXLO — limit offset (curtain) */
 
+/*
+ * Number of DMW windows for this instance, derived from the region size so the
+ * same code serves every ACE generation.  The register stride is identical
+ * across machines (0x08), but the window count differs: ACE 1.5/2.0 expose 4
+ * windows (region size 0x20) while ACE 3.0/4.0 expose 16 (region size 0x80).
+ * Using the hardcoded ACE 3.0 count of 16 overran the 0x20-byte ACE 1.5/2.0
+ * register buffer by 96 bytes, corrupting the heap during init.
+ */
+#define DMW_COUNT(io) ((io)->space->desc.size / ADSP_ACE30_DSP_DMW_STRIDE)
+
 /* DMWXBA field masks */
 #define DMW_BA_BA_MASK   0xFFFFF000u   /* 4 KB aligned base address (full 32-bit) */
 #define DMW_BA_ISEL_MASK 0x000000F0u   /* ISEL[7:4]  — initiator select */
@@ -51,7 +61,7 @@ void ace_dmw_init(struct adsp_dev *adsp, MemoryRegion *parent,
     g_dmw_info = info;
 
     /* Reset all windows: disabled, base=0, limit=0 */
-    for (w = 0; w < ADSP_ACE30_DSP_DMW_COUNT; w++) {
+    for (w = 0; w < DMW_COUNT(info); w++) {
         /* Clearing BA drops MWE and any previous target selection for this window. */
         ace_region(w * ADSP_ACE30_DSP_DMW_STRIDE + DMW_BA) = 0;
         /* Clearing LO removes the programmed window curtain until FW sets one up. */
@@ -59,7 +69,7 @@ void ace_dmw_init(struct adsp_dev *adsp, MemoryRegion *parent,
     }
 
     qemu_log("%s: initialized %u windows at 0x%x size=0x%x\n",
-             info->name, ADSP_ACE30_DSP_DMW_COUNT,
+             info->name, (unsigned int)DMW_COUNT(info),
              info->space->desc.base, info->space->desc.size);
 }
 
@@ -73,7 +83,7 @@ static uint64_t ace_dmw_read(void *opaque, hwaddr addr, unsigned size)
     uint32_t     word;
     uint64_t     val;
 
-    if (win >= ADSP_ACE30_DSP_DMW_COUNT) {
+    if (win >= DMW_COUNT(info)) {
         qemu_log_mask(LOG_UNIMP,
                       "DMW read: out-of-range window %u addr=0x%lx size=%u\n",
                       win, (unsigned long)addr, size);
@@ -134,7 +144,7 @@ static void ace_dmw_write(void *opaque, hwaddr addr, uint64_t val,
     uint32_t     old_word;
     uint32_t     word;
 
-    if (win >= ADSP_ACE30_DSP_DMW_COUNT) {
+    if (win >= DMW_COUNT(info)) {
         qemu_log_mask(LOG_UNIMP,
                       "DMW write: out-of-range window %u addr=0x%lx size=%u val=0x%llx\n",
                       win, (unsigned long)addr, size, (unsigned long long)val);
@@ -222,7 +232,7 @@ void hmp_info_ace_win(Monitor *mon, const QDict *qdict)
                    "WIN", "DMWBA", "DMWLO", "BASE", "LIMIT", "ISEL",
                    "RSS", "FLG");
 
-    for (w = 0; w < ADSP_ACE30_DSP_DMW_COUNT; w++) {
+    for (w = 0; w < DMW_COUNT(g_dmw_info); w++) {
         hwaddr off = w * ADSP_ACE30_DSP_DMW_STRIDE;
         uint32_t ba = g_dmw_info->region[(off + DMW_BA) >> 2];
         uint32_t lo = g_dmw_info->region[(off + DMW_LO) >> 2];
@@ -246,5 +256,5 @@ void hmp_info_ace_win(Monitor *mon, const QDict *qdict)
     }
 
     monitor_printf(mon, "  Summary: %d/%d windows enabled\n",
-                   enabled, ADSP_ACE30_DSP_DMW_COUNT);
+                   enabled, (int)DMW_COUNT(g_dmw_info));
 }
