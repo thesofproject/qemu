@@ -27,15 +27,23 @@
 #define SHIM_DFIDCPP    0x2020  /* Discovery Feature ID - Device Configuration and Port Parameters */
 
 /* CAP_INST[27:24] describes (instance_count - 1). */
-#define ACE_LOW_DFIDCPP_DEFAULT 0x04000000u
-#define ACE40_LOW_DFIDCPP_DEFAULT 0x01000000u
+#define ACE_LOW_DFIDCPP_DEFAULT 0x04000000u  /* Default: 5 cores (ACE 2.0/LNL) */
+#define ACE15_LOW_DFIDCPP_DEFAULT 0x02000000u /* ACE 1.5/MTL: 3 cores */
+#define ACE40_LOW_DFIDCPP_DEFAULT 0x01000000u /* ACE 4.0/NVL: 2 cores */
 
 static uint32_t ace_low_dfidcpp_default(struct adsp_io_info *info)
 {
     const struct adsp_desc *desc = info->adsp ? info->adsp->desc : NULL;
 
-    /* ACE4.0 currently models two cores in interrupt/IPC windows. */
-    if (desc && desc->name && !strcmp(desc->name, "ace40")) {
+    if (!desc || !desc->name) {
+        return ACE_LOW_DFIDCPP_DEFAULT;
+    }
+
+    /* Return SoC-specific core count in CAP_INST field. */
+    if (!strcmp(desc->name, "ace15")) {
+        return ACE15_LOW_DFIDCPP_DEFAULT;
+    }
+    if (!strcmp(desc->name, "ace40")) {
         return ACE40_LOW_DFIDCPP_DEFAULT;
     }
 
@@ -63,8 +71,9 @@ static uint64_t ace_block_common_read(void *opaque, hwaddr addr, unsigned size)
     hwaddr abs_addr = info->space->desc.base + addr;
 
     if (abs_addr == SHIM_DFIDCPP) {
-        /* Keep capability bits visible to firmware topology/power probing. */
-        return info->region[(SHIM_DFIDCPP - info->space->desc.base) >> 2];
+        /* DFIDCPP is a discoverability pointer written during init;
+         * return 0 on read so firmware can probe capabilities via init writes. */
+        return 0x00000000;
     }
 
     return info->region[addr >> 2];

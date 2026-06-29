@@ -73,6 +73,14 @@
 /* Manifest offset inside IMR (same as ACE 1.5) */
 #define ADSP_ACE20_DSP_IMR_MAN_OFFSET   0x42000u
 
+/* Low capability/status blocks (SHIM registers including DFIDCPP) */
+#define ADSP_ACE20_DSP_DFCAPSTS_BLOCK_BASE 0x00002000u
+#define ADSP_ACE20_DSP_DFCAPSTS_BLOCK_SIZE 0x1000u
+#define ADSP_ACE20_DSP_ADCIP_BLOCK_BASE    0x00003000u
+#define ADSP_ACE20_DSP_ADCIP_BLOCK_SIZE    0x800u
+#define ADSP_ACE20_DSP_ADCS_BLOCK_BASE     0x00003800u
+#define ADSP_ACE20_DSP_ADCS_BLOCK_SIZE     0x800u
+
 /* ---- IP blocks (DSP address space) ---- */
 
 /* UAOL — USB Audio Offload Link (new in ACE 2.0) */
@@ -212,6 +220,19 @@ static void ace_simple_io_init(struct adsp_dev *adsp, MemoryRegion *parent,
  * ------------------------------------------------------------------------- */
 
 static struct adsp_reg_space ace_20_io[] = {
+    /* Low capability/status window (includes DFIDCPP). */
+    { .name = "dfcapsts-low", .init = ace_dfcapsts_block_init,
+        .ops = &ace_dfcapsts_block_ops,
+        .desc = {.base = ADSP_ACE20_DSP_DFCAPSTS_BLOCK_BASE,
+                 .size = ADSP_ACE20_DSP_DFCAPSTS_BLOCK_SIZE}, },
+    { .name = "adcip-low", .init = ace_adcip_block_init,
+        .ops = &ace_adcip_block_ops,
+        .desc = {.base = ADSP_ACE20_DSP_ADCIP_BLOCK_BASE,
+                 .size = ADSP_ACE20_DSP_ADCIP_BLOCK_SIZE}, },
+    { .name = "adcs-low", .init = ace_adcs_block_init,
+        .ops = &ace_adcs_block_ops,
+        .desc = {.base = ADSP_ACE20_DSP_ADCS_BLOCK_BASE,
+                 .size = ADSP_ACE20_DSP_ADCS_BLOCK_SIZE}, },
     /* UAOL — USB Audio Offload Link (new in ACE 2.0) */
     { .name = "uaol", .init = ace_simple_io_init,
         .desc = {.base = ADSP_ACE20_DSP_UAOL_BASE,
@@ -351,6 +372,7 @@ static struct adsp_reg_space ace_20_io[] = {
  * ------------------------------------------------------------------------- */
 
 static const struct adsp_desc ace_ace20_dsp_desc = {
+    .name           = "ace20",
     .ia_irq         = IRQ_NUM_EXT_IA,
     .ext_timer_irq  = IRQ_NUM_EXT_TIMER,
 
