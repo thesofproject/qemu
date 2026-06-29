@@ -163,13 +163,7 @@ void ace_tlb_write(hwaddr addr, uint32_t val)
 
     tlb_state.entries[entry_idx] = val & 0xffff;
 
-    ace_log("TLB: Entry %u write=0x%04x [WRA=%u EXA=%u LOCK=%u TLBE=%u TLBPA=0x%x]\n",
-             entry_idx, tlb_state.entries[entry_idx],
-             !!(tlb_state.entries[entry_idx] & TLB_WRA),
-             !!(tlb_state.entries[entry_idx] & TLB_EXA),
-             !!(tlb_state.entries[entry_idx] & TLB_LOCK),
-             !!(tlb_state.entries[entry_idx] & TLB_ENABLE),
-             tlb_state.entries[entry_idx] & TLB_PA_MASK);
+    /* Avoid per-entry logging in the hot path; FW programs thousands of entries. */
 }
 
 static uint64_t ace_tlb_mmio_read(void *opaque, hwaddr addr, unsigned size)
