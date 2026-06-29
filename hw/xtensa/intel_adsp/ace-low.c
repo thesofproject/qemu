@@ -26,7 +26,21 @@
 /* Moved from ace.h */
 #define SHIM_DFIDCPP    0x2020  /* Discovery Feature ID - Device Configuration and Port Parameters */
 
-#define ACE_LOW_DFIDCPP_DEFAULT 0x03000000u
+/* CAP_INST[27:24] describes (instance_count - 1). */
+#define ACE_LOW_DFIDCPP_DEFAULT 0x04000000u
+#define ACE40_LOW_DFIDCPP_DEFAULT 0x01000000u
+
+static uint32_t ace_low_dfidcpp_default(struct adsp_io_info *info)
+{
+    const struct adsp_desc *desc = info->adsp ? info->adsp->desc : NULL;
+
+    /* ACE4.0 currently models two cores in interrupt/IPC windows. */
+    if (desc && desc->name && !strcmp(desc->name, "ace40")) {
+        return ACE40_LOW_DFIDCPP_DEFAULT;
+    }
+
+    return ACE_LOW_DFIDCPP_DEFAULT;
+}
 
 static void ace_block_common_init(struct adsp_dev *adsp, MemoryRegion *parent,
                                   struct adsp_io_info *info)
@@ -36,7 +50,7 @@ static void ace_block_common_init(struct adsp_dev *adsp, MemoryRegion *parent,
 
     if (base <= SHIM_DFIDCPP && SHIM_DFIDCPP < base + size) {
         /* Seed the fixed descriptor pointer value expected by FW probing these low blocks. */
-        info->region[(SHIM_DFIDCPP - base) >> 2] = ACE_LOW_DFIDCPP_DEFAULT;
+        info->region[(SHIM_DFIDCPP - base) >> 2] = ace_low_dfidcpp_default(info);
     }
 
     ace_log("%s: initialized at 0x%x size=0x%x\n",
@@ -49,8 +63,8 @@ static uint64_t ace_block_common_read(void *opaque, hwaddr addr, unsigned size)
     hwaddr abs_addr = info->space->desc.base + addr;
 
     if (abs_addr == SHIM_DFIDCPP) {
-        /* DFIDCPP is a discoverability pointer; return architectural reset value on read. */
-        return 0x00000000;
+        /* Keep capability bits visible to firmware topology/power probing. */
+        return info->region[(SHIM_DFIDCPP - info->space->desc.base) >> 2];
     }
 
     return info->region[addr >> 2];
