@@ -230,8 +230,8 @@ void ace_ext_timer_cb0(void *opaque)
     /* Latch timeout status until FW acknowledges it with a W1C write. */
     ace_region(SHIM_DSPWCTTCS) |= SHIM_DSPWCTTCS_T0T;
 
-    /* Interrupt may be generated if IL2MDx.FCT0 bit is set. */
-    ace_irq_set(adsp, IRQ_DWCT0, 0);
+    /* Route timer expiry to the level-2 root line used by FW on ACE1.5/2.0. */
+    adsp_set_lvl1_irq(adsp, IRQ_NUM_EXT_LEVEL2, 1);
 }
 
 void ace_ext_timer_cb1(void *opaque)
@@ -244,8 +244,8 @@ void ace_ext_timer_cb1(void *opaque)
     /* Latch timer 1 timeout so FW can observe and clear it explicitly. */
     ace_region(SHIM_DSPWCTTCS) |= SHIM_DSPWCTTCS_T1T;
 
-    /* Interrupt may be generated if IL2MDx.FCT1 bit is set. */
-    ace_irq_set(adsp, IRQ_DWCT1, 0);
+    /* Route timer expiry to the level-2 root line used by FW on ACE1.5/2.0. */
+    adsp_set_lvl1_irq(adsp, IRQ_NUM_EXT_LEVEL2, 1);
 }
 
 void ace_shim_reset(void *opaque)
@@ -450,16 +450,18 @@ void ace_shim_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
     /* clear IRQ */
         if ((final_val & SHIM_DSPWCTTCS_T0T) &&
             (ace_region(addr) & SHIM_DSPWCTTCS_T0T)) {
-            ace_irq_clear(adsp, IRQ_DWCT0, 0);
             /* Timeout bits are W1C, so clear only the bits FW wrote back. */
             ace_region(addr) &= ~final_val;
     }
         if ((final_val & SHIM_DSPWCTTCS_T1T) &&
             (ace_region(addr) & SHIM_DSPWCTTCS_T1T)) {
-            ace_irq_clear(adsp, IRQ_DWCT1, 0);
             /* Timeout bits are W1C, so clear only the bits FW wrote back. */
             ace_region(addr) &= ~final_val;
     }
+
+        if (!(ace_region(addr) & (SHIM_DSPWCTTCS_T0T | SHIM_DSPWCTTCS_T1T))) {
+            adsp_set_lvl1_irq(adsp, IRQ_NUM_EXT_LEVEL2, 0);
+        }
         break;
     case SHIM_DSPWCTT0C:
         /* Store the low compare word that the timer callback later reconstructs. */
